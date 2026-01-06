@@ -17,9 +17,12 @@ var logFilePath string
 var rootCmd = &cobra.Command{
 	Use:   "netdiag",
 	Short: "Network diagnostics and monitoring CLI tool",
-	Long: `netdiag is a developer-friendly CLI tool used for network diagnostics, monitoring, and debugging.`,
-	// Run is commented out so that the help menu displays by default
-	// Run: func(cmd *cobra.Command, args []string) { },
+	Long: `netdiag is a developer-friendly CLI tool used for
+network diagnostics, monitoring, and debugging.`,
+	Run: func(cmd *cobra.Command, args []string) {
+		// If no subcommands are provided, show help
+		cmd.Help()
+	},
 }
 
 // Execute adds all child commands to the root command and sets flags appropriately.
