@@ -58,7 +58,15 @@ Examples:
 
 				err = pinger.Resolve()
 				if err != nil {
-					return err
+					lock.Lock()
+					results = append(results, PingResult{
+						Host:    h,
+						IP:      "Resolution Failed",
+						Loss:    100.0,
+						Latency: 0,
+					})
+					lock.Unlock()
+					return nil
 				}
 
 				pinger.Count = count
