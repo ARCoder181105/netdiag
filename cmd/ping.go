@@ -22,10 +22,12 @@ var (
 )
 
 type PingResult struct {
-	Host    string
-	IP      string
-	Loss    float64
-	Latency time.Duration
+	Host       string
+	IP         string
+	Loss       float64
+	AvgLatency time.Duration
+	MinLatency time.Duration
+	MaxLatency time.Duration
 }
 
 // pingCmd represents the ping command
@@ -60,10 +62,12 @@ Examples:
 				if err != nil {
 					lock.Lock()
 					results = append(results, PingResult{
-						Host:    h,
-						IP:      "Resolution Failed",
-						Loss:    100.0,
-						Latency: 0,
+						Host:       h,
+						IP:         "Resolution Failed",
+						Loss:       100.0,
+						AvgLatency: 0,
+						MinLatency: 0,
+						MaxLatency: 0,
 					})
 					lock.Unlock()
 					return nil
@@ -78,10 +82,12 @@ Examples:
 					defer lock.Unlock()
 
 					result := PingResult{
-						Host:    h,
-						IP:      stats.IPAddr.String(), 
-						Loss:    stats.PacketLoss,
-						Latency: stats.AvgRtt,
+						Host:       h,
+						IP:         pinger.IPAddr().String(),
+						Loss:       stats.PacketLoss,
+						AvgLatency: stats.AvgRtt,
+						MinLatency: stats.MinRtt,
+						MaxLatency: stats.MaxRtt,
 					}
 					results = append(results, result)
 				}
@@ -100,7 +106,7 @@ Examples:
 			return
 		}
 
-		headers := []string{"Host", "IP", "Packet Loss", "Avg Latency"}
+		headers := []string{"Host", "IP", "Packet Loss", "Avg Latency", "Max Latency", "Min Latency"}
 		rows := [][]string{}
 
 		for _, result := range results {
@@ -108,7 +114,9 @@ Examples:
 				result.Host,
 				result.IP,
 				fmt.Sprintf("%.2f%%", result.Loss),
-				result.Latency.String(),
+				result.AvgLatency.String(),
+				result.MaxLatency.String(),
+				result.MinLatency.String(),
 			}
 			rows = append(rows, row)
 		}
@@ -122,12 +130,6 @@ Examples:
 func init() {
 	rootCmd.AddCommand(pingCmd)
 
-	// Cobra supports Persistent Flags which will work for this command
-	// and all subcommands, e.g.:
-	// pingCmd.PersistentFlags().String("foo", "", "A help for foo")
-
-	// Cobra supports local flags which will only run
-	// when this command is called directly.
 	pingCmd.Flags().IntVarP(
 		&count,
 		"count",
