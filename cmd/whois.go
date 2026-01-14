@@ -21,7 +21,7 @@ including the registrar, creation date, and expiration date.`,
 	Args: cobra.ExactArgs(1),
 	Run: func(cmd *cobra.Command, args []string) {
 		domain := args[0]
-		
+
 		output.PrintInfo(fmt.Sprintf("Querying WHOIS for %s...", domain))
 
 		result, err := whois.Whois(domain)
@@ -29,7 +29,7 @@ including the registrar, creation date, and expiration date.`,
 			output.PrintError(fmt.Sprintf("Whois query failed: %v", err))
 			return
 		}
-		
+
 		fmt.Println("\n" + strings.TrimSpace(result))
 	},
 }

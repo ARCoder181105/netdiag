@@ -1,0 +1,38 @@
+# Binaries
+netdiag
+netdiag.exe
+*.exe
+*.dll
+*.so
+*.dylib
+
+# Test binaries
+*.test
+
+# Coverage files
+*.out
+coverage.html
+coverage.out
+
+# Go workspace
+go.work
+
+# Build artifacts
+dist/
+build/
+
+# IDE
+.idea/
+*.swp
+*.swo
+*~
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Logs
+*.log
+
+# Dependencies
+vendor/

@@ -85,7 +85,6 @@ func printStatusCode(statusCode int) {
 func analyzeSSL(tlsState *tls.ConnectionState) {
 	cert := tlsState.PeerCertificates[0]
 
-	
 	now := time.Now()
 	daysRemaining := int(cert.NotAfter.Sub(now).Hours() / 24)
 

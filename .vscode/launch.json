@@ -1,0 +1,28 @@
+{
+  "version": "0.2.0",
+  "configurations": [
+    {
+      "name": "Debug netdiag ping",
+      "type": "go",
+      "request": "launch",
+      "mode": "auto",
+      "program": "${workspaceFolder}",
+      "args": ["ping", "google.com"]
+    },
+    {
+      "name": "Debug netdiag scan",
+      "type": "go",
+      "request": "launch",
+      "mode": "auto",
+      "program": "${workspaceFolder}",
+      "args": ["scan", "localhost", "-p", "1-1024"]
+    },
+    {
+      "name": "Debug current file",
+      "type": "go",
+      "request": "launch",
+      "mode": "auto",
+      "program": "${file}"
+    }
+  ]
+}

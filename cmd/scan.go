@@ -52,7 +52,6 @@ Examples:
 		// Semaphore
 		sem := make(chan struct{}, 100)
 
-	
 		for _, p := range portList {
 			wg.Add(1)
 			go func(port int) {
@@ -89,9 +88,8 @@ Examples:
 			return
 		}
 
-		sort.Ints(openPorts) 
+		sort.Ints(openPorts)
 
-		
 		headers := []string{"Port", "Protocol", "Status"}
 		var rows [][]string
 
@@ -103,7 +101,7 @@ Examples:
 			})
 		}
 
-		fmt.Println() 
+		fmt.Println()
 		output.PrintTable(headers, rows)
 		output.PrintSuccess(fmt.Sprintf("Scan complete. Found %d open ports.", len(openPorts)))
 	},

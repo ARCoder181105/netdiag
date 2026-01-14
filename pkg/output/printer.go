@@ -28,7 +28,7 @@ func PrintInfo(msg string) {
 // PrintTable renders a table with headers and rows
 func PrintTable(headers []string, rows [][]string) {
 	table := tablewriter.NewWriter(os.Stdout)
-	table.SetHeader(headers) 
-	table.AppendBulk(rows)   
+	table.SetHeader(headers)
+	table.AppendBulk(rows)
 	table.Render()
 }
