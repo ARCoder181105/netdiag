@@ -1,0 +1,77 @@
+MIT License
+
+Copyright (c) 2026 ARCoder181105
+
+Permission is hereby granted, free of charge, to any person obtaining a copy
+of this software and associated documentation files (the "Software"), to deal
+in the Software without restriction, including without limitation the rights
+to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+copies of the Software, and to permit persons to whom the Software is
+furnished to do so, subject to the following conditions:
+
+The above copyright notice and this permission notice shall be included in all
+copies or substantial portions of the Software.
+
+THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
+SOFTWARE.
+
+---
+
+## Third-Party Licenses
+
+This project uses the following open-source libraries:
+
+### Cobra (Apache License 2.0)
+- **Repository**: https://github.com/spf13/cobra
+- **License**: Apache-2.0
+- **Copyright**: Copyright 2013-2023 The Cobra Authors
+
+### pro-bing (Apache License 2.0)
+- **Repository**: https://github.com/prometheus-community/pro-bing
+- **License**: Apache-2.0
+- **Copyright**: Copyright 2023 The Prometheus Community
+
+### tablewriter (MIT License)
+- **Repository**: https://github.com/olekukonko/tablewriter
+- **License**: MIT
+- **Copyright**: Copyright (C) 2014 by Oleku Konko
+
+### color (MIT License)
+- **Repository**: https://github.com/fatih/color
+- **License**: MIT
+- **Copyright**: Copyright (c) 2013 Fatih Arslan
+
+### speedtest-go (MIT License)
+- **Repository**: https://github.com/showwin/speedtest-go
+- **License**: MIT
+- **Copyright**: Copyright (c) 2017 Kyota Nakamura
+
+### whois-go (MIT License)
+- **Repository**: https://github.com/likexian/whois-go
+- **License**: MIT
+- **Copyright**: Copyright (c) 2014-2024 Li Kexian
+
+### golang.org/x/net (BSD 3-Clause License)
+- **Repository**: https://golang.org/x/net
+- **License**: BSD-3-Clause
+- **Copyright**: Copyright (c) 2009 The Go Authors
+
+### golang.org/x/sync (BSD 3-Clause License)
+- **Repository**: https://golang.org/x/sync
+- **License**: BSD-3-Clause
+- **Copyright**: Copyright (c) 2009 The Go Authors
+
+---
+
+## License Compatibility
+
+All third-party dependencies use permissive licenses (MIT, Apache-2.0, BSD-3-Clause) 
+that are compatible with this project's MIT License. You can freely use, modify, 
+and distribute this software under the terms of the MIT License.
+
+For full license texts of dependencies, please visit their respective repositories.
