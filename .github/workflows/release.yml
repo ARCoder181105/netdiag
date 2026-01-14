@@ -28,21 +28,31 @@ jobs:
       - name: Build binaries
         run: |
           VERSION=${{ steps.version.outputs.VERSION }}
-          
+
           # Linux amd64
-          GOOS=linux GOARCH=amd64 go build -ldflags="-s -w -X main.version=$VERSION" -o dist/netdiag-linux-amd64
-          
+          GOOS=linux GOARCH=amd64 go build \
+            -ldflags="-s -w -X main.version=$VERSION" \
+            -o dist/netdiag-linux-amd64
+
           # Linux arm64
-          GOOS=linux GOARCH=arm64 go build -ldflags="-s -w -X main.version=$VERSION" -o dist/netdiag-linux-arm64
-          
+          GOOS=linux GOARCH=arm64 go build \
+            -ldflags="-s -w -X main.version=$VERSION" \
+            -o dist/netdiag-linux-arm64
+
           # macOS amd64 (Intel)
-          GOOS=darwin GOARCH=amd64 go build -ldflags="-s -w -X main.version=$VERSION" -o dist/netdiag-darwin-amd64
-          
+          GOOS=darwin GOARCH=amd64 go build \
+            -ldflags="-s -w -X main.version=$VERSION" \
+            -o dist/netdiag-darwin-amd64
+
           # macOS arm64 (Apple Silicon)
-          GOOS=darwin GOARCH=arm64 go build -ldflags="-s -w -X main.version=$VERSION" -o dist/netdiag-darwin-arm64
-          
+          GOOS=darwin GOARCH=arm64 go build \
+            -ldflags="-s -w -X main.version=$VERSION" \
+            -o dist/netdiag-darwin-arm64
+
           # Windows amd64
-          GOOS=windows GOARCH=amd64 go build -ldflags="-s -w -X main.version=$VERSION" -o dist/netdiag-windows-amd64.exe
+          GOOS=windows GOARCH=amd64 go build \
+            -ldflags="-s -w -X main.version=$VERSION" \
+            -o dist/netdiag-windows-amd64.exe
 
       - name: Generate checksums
         run: |
@@ -59,12 +69,16 @@ jobs:
 
           **Linux/macOS:**
           ```bash
-          curl -fsSL https://raw.githubusercontent.com/${{ github.repository }}/main/install.sh | bash
+          curl -fsSL \
+            https://raw.githubusercontent.com/${{ github.repository }}/main/install.sh \
+            | bash
           ```
 
           **Windows (PowerShell as Administrator):**
           ```powershell
-          irm https://raw.githubusercontent.com/${{ github.repository }}/main/install.ps1 | iex
+          irm \
+            https://raw.githubusercontent.com/${{ github.repository }}/main/install.ps1 \
+            | iex
           ```
 
           ### Manual Download
