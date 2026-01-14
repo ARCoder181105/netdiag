@@ -33,7 +33,12 @@
 - Go 1.25 or higher
 - Administrator/root privileges (for ICMP operations)
 
-### Build from Source
+### Quick Install
+
+Choose your platform and follow the instructions:
+
+<details>
+<summary><b>🐧 Linux (Bash/Zsh)</b></summary>
 
 ```bash
 # Clone the repository
@@ -43,16 +48,194 @@ cd netdiag
 # Build the binary
 go build -o netdiag
 
-# (Optional) Install globally
+# Install globally
 sudo mv netdiag /usr/local/bin/
+
+# Grant ICMP permissions (IMPORTANT - see Security Note below)
+sudo setcap cap_net_raw+ep /usr/local/bin/netdiag
+
+# Verify installation
+netdiag --help
 ```
 
-### Grant ICMP Permissions (Linux)
+**Security Note**: Instead of running as root, we grant only the `CAP_NET_RAW` capability for raw socket access. This follows the principle of least privilege.
 
-For security, grant only the necessary capability instead of running as root:
+</details>
+
+<details>
+<summary><b>🍎 macOS (Bash/Zsh)</b></summary>
 
 ```bash
+# Clone the repository
+git clone https://github.com/ARCoder181105/netdiag.git
+cd netdiag
+
+# Build the binary
+go build -o netdiag
+
+# Install globally
+sudo mv netdiag /usr/local/bin/
+
+# Make executable
+sudo chmod +x /usr/local/bin/netdiag
+
+# Verify installation
+netdiag --help
+```
+
+**Note**: macOS doesn't support Linux capabilities. You'll need to run ICMP-based commands (ping, trace, discover) with `sudo`:
+
+```bash
+sudo netdiag ping google.com
+sudo netdiag trace github.com
+sudo netdiag discover
+```
+
+For non-ICMP commands (scan, http, dig, whois, speedtest), sudo is not required.
+
+</details>
+
+<details>
+<summary><b>🪟 Windows (PowerShell)</b></summary>
+
+```powershell
+# Clone the repository
+git clone https://github.com/ARCoder181105/netdiag.git
+cd netdiag
+
+# Build the binary
+go build -o netdiag.exe
+
+# Create installation directory (if it doesn't exist)
+New-Item -ItemType Directory -Force -Path "$env:USERPROFILE\bin"
+
+# Move binary to user bin directory
+Move-Item -Force netdiag.exe "$env:USERPROFILE\bin\"
+
+# Add to PATH (if not already added)
+$userPath = [Environment]::GetEnvironmentVariable("Path", "User")
+if ($userPath -notlike "*$env:USERPROFILE\bin*") {
+    [Environment]::SetEnvironmentVariable(
+        "Path",
+        "$userPath;$env:USERPROFILE\bin",
+        "User"
+    )
+}
+
+# Refresh PATH in current session
+$env:Path = [System.Environment]::GetEnvironmentVariable("Path", "Machine") + ";" + [System.Environment]::GetEnvironmentVariable("Path", "User")
+
+# Verify installation
+netdiag --help
+```
+
+**Important**: 
+- Run PowerShell as Administrator for ICMP operations (ping, trace, discover)
+- Regular user mode works for: scan, http, dig, whois, speedtest
+- Restart your terminal after installation to refresh PATH
+
+**Alternative Installation (System-wide)**:
+
+```powershell
+# Run PowerShell as Administrator
+
+# Build and install
+go build -o netdiag.exe
+Move-Item -Force netdiag.exe "C:\Windows\System32\"
+
+# Verify
+netdiag --help
+```
+
+</details>
+
+<details>
+<summary><b>🐠 Fish Shell (Linux/macOS)</b></summary>
+
+```fish
+# Clone the repository
+git clone https://github.com/ARCoder181105/netdiag.git
+cd netdiag
+
+# Build the binary
+go build -o netdiag
+
+# Install globally
+sudo mv netdiag /usr/local/bin/
+
+# Grant ICMP permissions (Linux only)
 sudo setcap cap_net_raw+ep /usr/local/bin/netdiag
+
+# Verify installation
+netdiag --help
+```
+
+</details>
+
+### Build Options
+
+#### Static Binary (for distribution)
+
+```bash
+# Linux
+CGO_ENABLED=0 GOOS=linux GOARCH=amd64 go build -ldflags="-s -w" -o netdiag
+
+# macOS (Intel)
+CGO_ENABLED=0 GOOS=darwin GOARCH=amd64 go build -ldflags="-s -w" -o netdiag
+
+# macOS (Apple Silicon)
+CGO_ENABLED=0 GOOS=darwin GOARCH=arm64 go build -ldflags="-s -w" -o netdiag
+
+# Windows
+CGO_ENABLED=0 GOOS=windows GOARCH=amd64 go build -ldflags="-s -w" -o netdiag.exe
+```
+
+#### Cross-Platform Build Script
+
+**Linux/macOS** (`build.sh`):
+```bash
+#!/bin/bash
+
+echo "Building netdiag for multiple platforms..."
+
+# Linux
+GOOS=linux GOARCH=amd64 go build -ldflags="-s -w" -o dist/netdiag-linux-amd64
+GOOS=linux GOARCH=arm64 go build -ldflags="-s -w" -o dist/netdiag-linux-arm64
+
+# macOS
+GOOS=darwin GOARCH=amd64 go build -ldflags="-s -w" -o dist/netdiag-darwin-amd64
+GOOS=darwin GOARCH=arm64 go build -ldflags="-s -w" -o dist/netdiag-darwin-arm64
+
+# Windows
+GOOS=windows GOARCH=amd64 go build -ldflags="-s -w" -o dist/netdiag-windows-amd64.exe
+
+echo "Build complete! Binaries are in ./dist/"
+```
+
+**Windows** (`build.ps1`):
+```powershell
+Write-Host "Building netdiag for multiple platforms..." -ForegroundColor Cyan
+
+# Create dist directory
+New-Item -ItemType Directory -Force -Path "dist" | Out-Null
+
+# Linux
+$env:GOOS = "linux"; $env:GOARCH = "amd64"
+go build -ldflags="-s -w" -o dist/netdiag-linux-amd64
+$env:GOOS = "linux"; $env:GOARCH = "arm64"
+go build -ldflags="-s -w" -o dist/netdiag-linux-arm64
+
+# macOS
+$env:GOOS = "darwin"; $env:GOARCH = "amd64"
+go build -ldflags="-s -w" -o dist/netdiag-darwin-amd64
+$env:GOOS = "darwin"; $env:GOARCH = "arm64"
+go build -ldflags="-s -w" -o dist/netdiag-darwin-arm64
+
+# Windows
+$env:GOOS = "windows"; $env:GOARCH = "amd64"
+go build -ldflags="-s -w" -o dist/netdiag-windows-amd64.exe
+
+Write-Host "Build complete! Binaries are in ./dist/" -ForegroundColor Green
 ```
 
 ## 🚀 Quick Start
