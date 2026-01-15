@@ -1,3 +1,5 @@
+version: "2"
+
 run:
   timeout: 5m
   tests: true
@@ -20,8 +22,10 @@ linters:
 linters-settings:
   errcheck:
     check-blank: true
+
   govet:
     check-shadowing: true
+
   gofmt:
     simplify: true
 
