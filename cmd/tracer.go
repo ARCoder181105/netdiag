@@ -112,7 +112,7 @@ func runTrace(host string, maxHops int) error {
 		startTime := time.Now()
 
 		// Send through the packet connection with TTL control
-		if _, err := p.WriteTo(msgBytes, nil, destAddr); err != nil {
+		if _, err = p.WriteTo(msgBytes, nil, destAddr); err != nil {
 			return fmt.Errorf("failed to send probe: %w", err)
 		}
 

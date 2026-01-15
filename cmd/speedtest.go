@@ -58,8 +58,8 @@ Examples:
 
 		if serverID != "" {
 			output.PrintInfo(fmt.Sprintf("Looking for server ID: %s", serverID))
-			serverIDInt, err := strconv.Atoi(serverID)
-			if err != nil {
+			serverIDInt, convErr := strconv.Atoi(serverID)
+			if convErr != nil {
 				output.PrintError("Invalid server ID format")
 				return
 			}
