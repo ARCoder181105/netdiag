@@ -5,6 +5,10 @@ run:
   tests: true
   modules-download-mode: readonly
 
+formatters:
+  enable:
+    - goimports
+
 linters:
   enable:
     - errcheck
@@ -15,10 +19,6 @@ linters:
     - misspell
     - gocritic
     - revive
-
-formatters:
-  enable:
-    - goimports
 
 linters-settings:
   errcheck:
