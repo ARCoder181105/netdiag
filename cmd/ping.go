@@ -1,6 +1,7 @@
 /*
-Copyright © 2026 NAME HERE <EMAIL ADDRESS>
+Copyright © 2026 ARCoder181105 <EMAIL ADDRESS>
 */
+// Package cmd implements the CLI commands.
 package cmd
 
 import (
@@ -22,6 +23,7 @@ var (
 	interval int
 )
 
+// PingResult holds the statistics of a ping execution.
 type PingResult struct {
 	Host       string
 	IP         string
@@ -42,7 +44,7 @@ Examples:
   netdiag ping google.com
   netdiag ping -c 5 -i 2 github.com cloudflare.com`,
 	Args: cobra.MinimumNArgs(1),
-	Run: func(cmd *cobra.Command, args []string) {
+	Run: func(_ *cobra.Command, args []string) {
 		group, _ := errgroup.WithContext(context.Background())
 		group.SetLimit(20)
 		var lock sync.Mutex

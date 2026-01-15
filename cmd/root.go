@@ -1,6 +1,7 @@
 /*
-Copyright © 2026 NAME HERE <EMAIL ADDRESS>
+Copyright © 2026 ARCoder181105 <EMAIL ADDRESS>
 */
+// Package cmd implements the CLI commands.
 package cmd
 
 import (
@@ -11,11 +12,9 @@ import (
 )
 
 // Variables to store flag values
-var (
-	jsonOutput  bool
-	logFilePath string
-	showVersion bool
-)
+var jsonOutput bool
+var logFilePath string
+var showVersion bool
 
 // Version info variables
 var (
@@ -37,13 +36,14 @@ var rootCmd = &cobra.Command{
 	Short: "Network diagnostics and monitoring CLI tool",
 	Long: `netdiag is a developer-friendly CLI tool used for
 network diagnostics, monitoring, and debugging.`,
-	Run: func(cmd *cobra.Command, args []string) {
+	Run: func(cmd *cobra.Command, _ []string) { // unused args -> _
 		if showVersion {
 			fmt.Printf("netdiag version %s (%s) built on %s\n", version, commit, date)
 			return
 		}
 		// If no subcommands are provided, show help
-		cmd.Help()
+		// Fix errcheck
+		_ = cmd.Help()
 	},
 }
 

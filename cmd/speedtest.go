@@ -1,6 +1,7 @@
 /*
-Copyright © 2026 NAME HERE <EMAIL ADDRESS>
+Copyright © 2026 ARCoder181105 <EMAIL ADDRESS>
 */
+// Package cmd implements the CLI commands.
 package cmd
 
 import (
@@ -32,7 +33,7 @@ Examples:
   netdiag speedtest
   netdiag speedtest --no-upload
   netdiag speedtest --server 12345`,
-	Run: func(cmd *cobra.Command, args []string) {
+	Run: func(_ *cobra.Command, _ []string) {
 		output.PrintInfo("🌐 Starting Internet Speed Test...\n")
 
 		output.PrintInfo("Fetching user information...")

@@ -1,3 +1,4 @@
+// Package output handles formatting and printing of messages and tables to stdout.
 package output
 
 import (
@@ -7,20 +8,22 @@ import (
 	"github.com/olekukonko/tablewriter"
 )
 
-// In this package it contains the output formatters for the tool with colors scheme
-
+// PrintError prints a message in red.
 func PrintError(msg string) {
 	color.Red(msg)
 }
 
+// PrintSuccess prints a message in green.
 func PrintSuccess(msg string) {
 	color.Green(msg)
 }
 
+// PrintWarning prints a message in yellow.
 func PrintWarning(msg string) {
 	color.Yellow(msg)
 }
 
+// PrintInfo prints a message in cyan.
 func PrintInfo(msg string) {
 	color.Cyan(msg)
 }

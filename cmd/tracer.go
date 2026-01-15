@@ -1,6 +1,8 @@
 /*
-Copyright © 2026 NAME HERE <EMAIL ADDRESS>
+Copyright © 2026 ARCoder181105 <EMAIL ADDRESS>
 */
+
+// Package cmd implements the CLI commands.
 package cmd
 
 import (
@@ -8,11 +10,10 @@ import (
 	"net"
 	"time"
 
+	"github.com/ARCoder181105/netdiag/pkg/output"
 	"github.com/spf13/cobra"
 	"golang.org/x/net/icmp"
 	"golang.org/x/net/ipv4"
-
-	"github.com/ARCoder181105/netdiag/pkg/output"
 )
 
 var maxHops int
@@ -28,7 +29,7 @@ Example:
   netdiag trace google.com
   netdiag trace 8.8.8.8`,
 	Args: cobra.ExactArgs(1),
-	Run: func(cmd *cobra.Command, args []string) {
+	Run: func(_ *cobra.Command, args []string) {
 		host := args[0]
 		if err := runTrace(host, maxHops); err != nil {
 			output.PrintError(fmt.Sprintf("Error: %v", err))
@@ -64,18 +65,21 @@ func runTrace(host string, maxHops int) error {
 	if err != nil {
 		return fmt.Errorf("failed to open connection (try running with Administrator privileges): %w", err)
 	}
-	defer conn.Close()
+	// Fix errcheck
+	defer func() { _ = conn.Close() }()
 
 	// Step 3: Wrap for IPv4 Control
 	p := ipv4.NewPacketConn(conn)
-	defer p.Close()
+	// Fix errcheck
+	defer func() { _ = p.Close() }()
 
 	// Open ICMP listener for receiving replies
 	icmpConn, err := icmp.ListenPacket("ip4:icmp", "0.0.0.0")
 	if err != nil {
 		return fmt.Errorf("failed to open ICMP listener: %w", err)
 	}
-	defer icmpConn.Close()
+	// Fix errcheck
+	defer func() { _ = icmpConn.Close() }()
 
 	// Prepare table data
 	headers := []string{"Hop", "IP Address", "Hostname", "RTT (ms)", "Status"}
@@ -173,7 +177,6 @@ func runTrace(host string, maxHops int) error {
 				rttMs,
 				"Destination",
 			})
-			reachedDestination = true
 
 			// Print the table
 			fmt.Println()

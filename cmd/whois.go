@@ -1,6 +1,7 @@
 /*
-Copyright © 2026 NAME HERE <EMAIL ADDRESS>
+Copyright © 2026 ARCoder181105 <EMAIL ADDRESS>
 */
+// Package cmd implements the CLI commands.
 package cmd
 
 import (
@@ -20,7 +21,7 @@ var whoisCmd = &cobra.Command{
 	Long: `Query the WHOIS database to find information about a domain name,
 including the registrar, creation date, and expiration date.`,
 	Args: cobra.ExactArgs(1),
-	Run: func(cmd *cobra.Command, args []string) {
+	Run: func(_ *cobra.Command, args []string) {
 		domain := args[0]
 
 		output.PrintInfo(fmt.Sprintf("Querying WHOIS for %s...", domain))
