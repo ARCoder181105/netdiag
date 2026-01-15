@@ -9,133 +9,47 @@ permissions:
   contents: write
 
 jobs:
-  build:
-    name: Build Release Binaries
+  release:
+    name: Build and Release
     runs-on: ubuntu-latest
     steps:
-      - name: Checkout code
-        uses: actions/checkout@v4
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
 
       - name: Set up Go
         uses: actions/setup-go@v5
         with:
-          go-version: '1.25'
+          go-version: '1.24'
 
-      - name: Get version
-        id: version
-        run: echo "VERSION=${GITHUB_REF#refs/tags/}" >> $GITHUB_OUTPUT
-
-      - name: Build binaries
+      - name: Build Binaries
         run: |
-          VERSION=${{ steps.version.outputs.VERSION }}
+          mkdir dist
+          VERSION=${GITHUB_REF#refs/tags/}
+          echo "Building version $VERSION..."
+          
+          platforms=("linux/amd64" "linux/arm64" "darwin/amd64" "darwin/arm64" "windows/amd64")
+          
+          for platform in "${platforms[@]}"; do
+              platform_split=(${platform//\// })
+              GOOS=${platform_split[0]}
+              GOARCH=${platform_split[1]}
+              output_name="netdiag-${GOOS}-${GOARCH}"
+              
+              if [ $GOOS = "windows" ]; then
+                  output_name+='.exe'
+              fi
+      
+              echo "Building for $GOOS/$GOARCH..."
+              env GOOS=$GOOS GOARCH=$GOARCH go build -ldflags="-s -w -X main.version=$VERSION -X main.commit=${GITHUB_SHA::8} -X main.date=$(date +%F)" -o dist/$output_name main.go
+          done
 
-          # Linux amd64
-          GOOS=linux GOARCH=amd64 go build \
-            -ldflags="-s -w -X main.version=$VERSION" \
-            -o dist/netdiag-linux-amd64
+      - name: Generate Checksums
+        working-directory: dist
+        run: sha256sum * > checksums.txt
 
-          # Linux arm64
-          GOOS=linux GOARCH=arm64 go build \
-            -ldflags="-s -w -X main.version=$VERSION" \
-            -o dist/netdiag-linux-arm64
-
-          # macOS amd64 (Intel)
-          GOOS=darwin GOARCH=amd64 go build \
-            -ldflags="-s -w -X main.version=$VERSION" \
-            -o dist/netdiag-darwin-amd64
-
-          # macOS arm64 (Apple Silicon)
-          GOOS=darwin GOARCH=arm64 go build \
-            -ldflags="-s -w -X main.version=$VERSION" \
-            -o dist/netdiag-darwin-arm64
-
-          # Windows amd64
-          GOOS=windows GOARCH=amd64 go build \
-            -ldflags="-s -w -X main.version=$VERSION" \
-            -o dist/netdiag-windows-amd64.exe
-
-      - name: Generate checksums
-        run: |
-          cd dist
-          sha256sum * > checksums.txt
-          cat checksums.txt
-
-      - name: Create release notes
-        run: |
-          cat > release_notes.md << 'EOF'
-          ## Installation
-
-          ### Quick Install
-
-          **Linux/macOS:**
-          ```bash
-          curl -fsSL \
-            https://raw.githubusercontent.com/${{ github.repository }}/main/install.sh \
-            | bash
-          ```
-
-          **Windows (PowerShell as Administrator):**
-          ```powershell
-          irm \
-            https://raw.githubusercontent.com/${{ github.repository }}/main/install.ps1 \
-            | iex
-          ```
-
-          ### Manual Download
-
-          Download the appropriate binary for your platform below:
-
-          - **Linux amd64**: `netdiag-linux-amd64`
-          - **Linux arm64**: `netdiag-linux-arm64`
-          - **macOS Intel**: `netdiag-darwin-amd64`
-          - **macOS Apple Silicon**: `netdiag-darwin-arm64`
-          - **Windows amd64**: `netdiag-windows-amd64.exe`
-
-          After downloading:
-
-          **Linux:**
-          ```bash
-          chmod +x netdiag-linux-amd64
-          sudo mv netdiag-linux-amd64 /usr/local/bin/netdiag
-          sudo setcap cap_net_raw+ep /usr/local/bin/netdiag
-          ```
-
-          **macOS:**
-          ```bash
-          chmod +x netdiag-darwin-arm64  # or netdiag-darwin-amd64 for Intel
-          sudo mv netdiag-darwin-arm64 /usr/local/bin/netdiag
-          ```
-
-          **Windows:**
-          - Extract `netdiag-windows-amd64.exe`
-          - Rename to `netdiag.exe`
-          - Move to `C:\Windows\System32\` or add to PATH
-
-          ### Verify Installation
-
-          ```bash
-          netdiag --version
-          netdiag --help
-          ```
-
-          ## What's Changed
-
-          See CHANGELOG.md for detailed changes.
-          EOF
-
-      - name: Create GitHub Release
+      - name: Release
         uses: softprops/action-gh-release@v1
         with:
-          files: |
-            dist/netdiag-linux-amd64
-            dist/netdiag-linux-arm64
-            dist/netdiag-darwin-amd64
-            dist/netdiag-darwin-arm64
-            dist/netdiag-windows-amd64.exe
-            dist/checksums.txt
-          body_path: release_notes.md
-          draft: false
-          prerelease: false
+          files: dist/*
           generate_release_notes: true
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
