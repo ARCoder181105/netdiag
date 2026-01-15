@@ -1,13 +1,7 @@
-version: 2
-
 run:
   timeout: 5m
   tests: true
   modules-download-mode: readonly
-
-formatters:
-  enable:
-    - goimports
 
 linters:
   enable:
@@ -30,9 +24,6 @@ linters-settings:
     settings:
       shadow:
         strict: false
-
-  goimports:
-    local-prefixes: github.com/ARCoder181105/netdiag
 
   misspell:
     locale: US
