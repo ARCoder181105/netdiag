@@ -11,7 +11,7 @@ LDFLAGS := -s -w \
 	-X main.commit=$(COMMIT) \
 	-X main.date=$(DATE)
 
-.PHONY: all help build install test lint clean deps run dist
+.PHONY: all help build install uninstall test lint clean deps run dist
 
 all: build
 
@@ -62,3 +62,7 @@ fmt:
 	$(GO) run mvdan.cc/gofumpt@latest -w .
 	$(GO) run github.com/daixiang0/gci@latest write -s standard -s default -s "prefix(github.com/ARCoder181105/netdiag)" .
 
+uninstall:
+	@echo "Uninstalling $(BINARY_NAME)..."
+	sudo rm -f $(INSTALL_PATH)/$(BINARY_NAME)
+	@echo "Uninstalled from $(INSTALL_PATH)/$(BINARY_NAME)"
