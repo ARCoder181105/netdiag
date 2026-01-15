@@ -1,7 +1,7 @@
 # netdiag 🌐
 
 <a href="https://github.com/ARCoder181105/netdiag/releases"><img src="https://img.shields.io/github/v/release/ARCoder181105/netdiag"></a>
-<a href="https://go.dev/"><img src="https://img.shields.io/badge/Go-1.25+-00ADD8?style=flat&amp;logo=go"></a>
+<a href="https://go.dev/"><img src="https://img.shields.io/badge/Go-1.25+-00ADD8?style=flat&logo=go"></a>
 <a><img src="https://img.shields.io/github/license/ARCoder181105/netdiag"></a>
 <a href="https://github.com/ARCoder181105/netdiag/actions"><img src="https://github.com/ARCoder181105/netdiag/actions/workflows/ci.yml/badge.svg"></a>
 <a href="https://github.com/ARCoder181105/netdiag/releases"><img src="https://img.shields.io/github/downloads/ARCoder181105/netdiag/total"></a>
@@ -21,13 +21,14 @@
 
 ## 📋 Table of Contents
 
-- [Installation](#installation)
-- [Quick Start](#quick-start)
-- [Commands Reference](#commands-reference)
-- [Architecture & Concepts](#architecture--concepts)
-- [Permissions](#permissions)
-- [Contributing](#contributing)
-- [License](#license)
+- [Installation](#-installation)
+- [Uninstallation](#-uninstallation)
+- [Quick Start](#-quick-start)
+- [Commands Reference](#-commands-reference)
+- [Architecture & Concepts](#-architecture--concepts)
+- [Permissions](#-permissions)
+- [Contributing](#-contributing)
+- [License](#-license)
 
 ## 🛠️ Installation
 
@@ -125,7 +126,7 @@ netdiag --version
 netdiag --help
 ```
 
-### Quick Start
+### Quick Test
 
 ```bash
 # Test connectivity
@@ -137,6 +138,59 @@ netdiag speedtest
 # Scan ports
 netdiag scan localhost -p 1-1000
 ```
+
+## 🗑️ Uninstallation
+
+If you need to remove netdiag, you can use the provided uninstallation scripts or remove it manually.
+
+### Quick Uninstall
+
+**Linux/macOS:**
+```bash
+curl -fsSL https://raw.githubusercontent.com/ARCoder181105/netdiag/main/uninstall.sh | bash
+```
+
+**Windows (PowerShell as Administrator):**
+```powershell
+irm https://raw.githubusercontent.com/ARCoder181105/netdiag/main/uninstall.ps1 | iex
+```
+
+---
+
+### Manual Uninstall
+
+<details>
+<summary><b>Removing netdiag from your system</b></summary>
+
+#### If installed via Makefile or script:
+```bash
+# Using Makefile
+make uninstall
+
+# Or manually remove the binary
+sudo rm /usr/local/bin/netdiag  # Linux/macOS
+```
+
+#### If installed via Homebrew:
+```bash
+brew uninstall netdiag
+brew untap ARCoder181105/netdiag
+```
+
+#### If installed via Go:
+```bash
+rm $(go env GOPATH)/bin/netdiag
+```
+
+#### Windows:
+```powershell
+# If installed to System32
+Remove-Item C:\Windows\System32\netdiag.exe
+
+# Or remove from your custom PATH location
+```
+
+</details>
 
 ## 🚀 Quick Start
 
@@ -470,21 +524,21 @@ This grants `CAP_NET_RAW` (raw socket creation) to the binary while keeping ever
 
 ### Linux/macOS
 
-After building, grant ICMP capabilities:
+After installation, grant ICMP capabilities:
 
 ```bash
-sudo setcap cap_net_raw+ep ./netdiag
+sudo setcap cap_net_raw+ep /usr/local/bin/netdiag
 ```
 
 Alternatively, run with sudo (not recommended):
 
 ```bash
-sudo ./netdiag ping google.com
+sudo netdiag ping google.com
 ```
 
 ### Windows
 
-Run Command Prompt or PowerShell as Administrator.
+Run Command Prompt or PowerShell as Administrator for full functionality.
 
 ---
 
@@ -515,6 +569,14 @@ go test ./...
 # Build
 go build -o netdiag
 ```
+
+### Submitting Changes
+
+1. Fork the repository
+2. Create a feature branch (`git checkout -b feature/amazing-feature`)
+3. Commit your changes (`git commit -m 'Add amazing feature'`)
+4. Push to the branch (`git push origin feature/amazing-feature`)
+5. Open a Pull Request
 
 ---
 
