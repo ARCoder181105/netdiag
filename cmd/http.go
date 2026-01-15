@@ -1,3 +1,8 @@
+/*
+Copyright © 2026 ARCoder181105 <EMAIL ADDRESS>
+*/
+
+// Package cmd implements the CLI commands.
 package cmd
 
 import (
@@ -27,7 +32,7 @@ Examples:
   yourapp http https://example.com
   yourapp http example.com --timeout 10`,
 	Args: cobra.ExactArgs(1),
-	Run: func(cmd *cobra.Command, args []string) {
+	Run: func(_ *cobra.Command, args []string) { // Rename 'cmd' to '_'
 		host := args[0]
 		if !strings.HasPrefix(host, "http://") && !strings.HasPrefix(host, "https://") {
 			host = "https://" + host
@@ -52,7 +57,10 @@ Examples:
 			output.PrintError(fmt.Sprintf("Error making request: %v", err))
 			return
 		}
-		defer resp.Body.Close()
+		// Fix errcheck: handle close error
+		defer func() {
+			_ = resp.Body.Close()
+		}()
 
 		// Status
 		printStatusCode(resp.StatusCode)
@@ -71,13 +79,15 @@ Examples:
 func printStatusCode(statusCode int) {
 	msg := fmt.Sprintf("Status Code: %d", statusCode)
 
-	if statusCode >= 200 && statusCode < 300 {
+	// Fix gocritic: if-else chain -> switch
+	switch {
+	case statusCode >= 200 && statusCode < 300:
 		output.PrintSuccess(msg)
-	} else if statusCode >= 500 {
+	case statusCode >= 500:
 		output.PrintError(msg)
-	} else if statusCode >= 400 {
+	case statusCode >= 400:
 		output.PrintWarning(msg)
-	} else {
+	default:
 		output.PrintInfo(msg)
 	}
 }
@@ -85,7 +95,6 @@ func printStatusCode(statusCode int) {
 func analyzeSSL(tlsState *tls.ConnectionState) {
 	cert := tlsState.PeerCertificates[0]
 
-	
 	now := time.Now()
 	daysRemaining := int(cert.NotAfter.Sub(now).Hours() / 24)
 
@@ -104,12 +113,13 @@ func analyzeSSL(tlsState *tls.ConnectionState) {
 
 	output.PrintTable(headers, rows)
 
-	// Warning if expiring soon
-	if daysRemaining < 30 {
+	// Fix gocritic: if-else chain -> switch
+	switch {
+	case daysRemaining < 30:
 		output.PrintWarning(fmt.Sprintf("\n⚠️  WARNING: Certificate expires in %d days!", daysRemaining))
-	} else if daysRemaining < 0 {
+	case daysRemaining < 0:
 		output.PrintError(fmt.Sprintf("\n❌ ERROR: Certificate expired %d days ago!", -daysRemaining))
-	} else {
+	default:
 		output.PrintSuccess(fmt.Sprintf("\n✓ Certificate is valid for %d more days", daysRemaining))
 	}
 }

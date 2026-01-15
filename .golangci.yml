@@ -1,0 +1,80 @@
+run:
+  timeout: 5m
+  tests: true
+  modules-download-mode: readonly
+
+linters:
+  enable:
+    - errcheck
+    - govet
+    - ineffassign
+    - staticcheck
+    - unused
+    - misspell
+    - gocritic
+    - revive
+
+linters-settings:
+  errcheck:
+    check-blank: false
+    check-type-assertions: true
+
+  govet:
+    enable-all: true
+    settings:
+      shadow:
+        strict: false
+
+  misspell:
+    locale: US
+
+  gocritic:
+    enabled-checks:
+      - appendCombine
+      - argOrder
+      - badCall
+      - badCond
+      - caseOrder
+      - dupArg
+      - dupBranchBody
+      - dupCase
+      - dupSubExpr
+      - elseif
+      - emptyFallthrough
+      - offBy1
+      - sloppyLen
+      - switchTrue
+      - unlambda
+      - weakCond
+
+  revive:
+    rules:
+      - name: blank-imports
+      - name: context-as-argument
+      - name: dot-imports
+      - name: error-return
+      - name: error-strings
+      - name: error-naming
+      - name: exported
+      - name: if-return
+      - name: increment-decrement
+      - name: var-naming
+      - name: package-comments
+      - name: range
+      - name: receiver-naming
+      - name: indent-error-flow
+      - name: errorf
+      - name: empty-block
+      - name: superfluous-else
+      - name: unreachable-code
+
+issues:
+  exclude-use-default: false
+  max-issues-per-linter: 0
+  max-same-issues: 0
+
+  exclude-rules:
+    - path: _test\.go
+      linters:
+        - errcheck
+        - gocritic

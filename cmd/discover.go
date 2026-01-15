@@ -1,6 +1,8 @@
 /*
-Copyright © 2026 NAME HERE <EMAIL ADDRESS>
+Copyright © 2026 ARCoder181105 <EMAIL ADDRESS>
 */
+
+// Package cmd implements the CLI commands.
 package cmd
 
 import (
@@ -11,9 +13,10 @@ import (
 	"sync"
 	"time"
 
-	"github.com/ARCoder181105/netdiag/pkg/output"
 	probing "github.com/prometheus-community/pro-bing"
 	"github.com/spf13/cobra"
+
+	"github.com/ARCoder181105/netdiag/pkg/output"
 )
 
 var discoverTimeout int
@@ -25,7 +28,7 @@ var discoverCmd = &cobra.Command{
 This command automatically detects your local IP range and scans all 254 addresses.
 
 Note: This usually requires Administrator/Sudo privileges to send ICMP packets.`,
-	Run: func(cmd *cobra.Command, args []string) {
+	Run: func(_ *cobra.Command, _ []string) {
 		output.PrintInfo("🔍 Detecting local network...")
 
 		myIP, prefix, err := getLocalIPPrefix()

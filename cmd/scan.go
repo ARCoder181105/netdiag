@@ -1,6 +1,8 @@
 /*
-Copyright © 2026 NAME HERE <EMAIL ADDRESS>
+Copyright © 2026 ARCoder181105 <EMAIL ADDRESS>
 */
+
+// Package cmd implements the CLI commands.
 package cmd
 
 import (
@@ -33,7 +35,7 @@ Examples:
   netdiag scan 192.168.1.1 --ports 80,443,8000-8100
   netdiag scan localhost -p 22 -t 2`,
 	Args: cobra.ExactArgs(1),
-	Run: func(cmd *cobra.Command, args []string) {
+	Run: func(_ *cobra.Command, args []string) { // unused cmd -> _
 		host := args[0]
 
 		// Parse the ports
@@ -52,7 +54,6 @@ Examples:
 		// Semaphore
 		sem := make(chan struct{}, 100)
 
-	
 		for _, p := range portList {
 			wg.Add(1)
 			go func(port int) {
@@ -65,7 +66,8 @@ Examples:
 				address := net.JoinHostPort(host, strconv.Itoa(port))
 				conn, err := net.DialTimeout("tcp", address, time.Duration(scanTimeout)*time.Second)
 				if err == nil {
-					conn.Close()
+					// Fix errcheck
+					_ = conn.Close()
 					results <- port // Send open port to results channel
 				}
 			}(p)
@@ -89,9 +91,8 @@ Examples:
 			return
 		}
 
-		sort.Ints(openPorts) 
+		sort.Ints(openPorts)
 
-		
 		headers := []string{"Port", "Protocol", "Status"}
 		var rows [][]string
 
@@ -103,7 +104,7 @@ Examples:
 			})
 		}
 
-		fmt.Println() 
+		fmt.Println()
 		output.PrintTable(headers, rows)
 		output.PrintSuccess(fmt.Sprintf("Scan complete. Found %d open ports.", len(openPorts)))
 	},

@@ -1,15 +1,18 @@
 /*
-Copyright © 2026 NAME HERE <EMAIL ADDRESS>
+Copyright © 2026 ARCoder181105 <EMAIL ADDRESS>
 */
+
+// Package cmd implements the CLI commands.
 package cmd
 
 import (
 	"fmt"
 	"strconv"
 
-	"github.com/ARCoder181105/netdiag/pkg/output"
 	"github.com/showwin/speedtest-go/speedtest"
 	"github.com/spf13/cobra"
+
+	"github.com/ARCoder181105/netdiag/pkg/output"
 )
 
 var (
@@ -31,8 +34,7 @@ Examples:
   netdiag speedtest
   netdiag speedtest --no-upload
   netdiag speedtest --server 12345`,
-	Run: func(cmd *cobra.Command, args []string) {
-
+	Run: func(_ *cobra.Command, _ []string) {
 		output.PrintInfo("🌐 Starting Internet Speed Test...\n")
 
 		output.PrintInfo("Fetching user information...")
@@ -56,8 +58,8 @@ Examples:
 
 		if serverID != "" {
 			output.PrintInfo(fmt.Sprintf("Looking for server ID: %s", serverID))
-			serverIDInt, err := strconv.Atoi(serverID)
-			if err != nil {
+			serverIDInt, convErr := strconv.Atoi(serverID)
+			if convErr != nil {
 				output.PrintError("Invalid server ID format")
 				return
 			}

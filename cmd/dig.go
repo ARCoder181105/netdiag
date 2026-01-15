@@ -1,6 +1,8 @@
 /*
-Copyright © 2026 NAME HERE <EMAIL ADDRESS>
+Copyright © 2026 ARCoder181105 <EMAIL ADDRESS>
 */
+
+// Package cmd implements the CLI commands.
 package cmd
 
 import (
@@ -8,8 +10,9 @@ import (
 	"net"
 	"strings"
 
-	"github.com/ARCoder181105/netdiag/pkg/output"
 	"github.com/spf13/cobra"
+
+	"github.com/ARCoder181105/netdiag/pkg/output"
 )
 
 // digCmd represents the dig command
@@ -31,7 +34,7 @@ Examples:
   netdiag dig github.com MX     (Find Mail Servers)
   netdiag dig google.com TXT    (Read Text Records)`,
 	Args: cobra.RangeArgs(1, 2),
-	Run: func(cmd *cobra.Command, args []string) {
+	Run: func(_ *cobra.Command, args []string) {
 		domain := args[0]
 		recordType := "A"
 		if len(args) == 2 {
