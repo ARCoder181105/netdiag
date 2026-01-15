@@ -70,10 +70,12 @@ jobs:
           cache: true
 
       - name: golangci-lint
-        uses: golangci/golangci-lint-action@v4
+        uses: golangci/golangci-lint-action@v6
         with:
-          version: v1.55.2
-          args: --timeout=5m
+          version: v1.64.2
+          args: --timeout=5m --fix
+          # Optional: Only needed if you use private modules
+          # github-token: ${{ secrets.GITHUB_TOKEN }}
 
   build:
     name: Build
