@@ -7,8 +7,9 @@ import (
 	"strings"
 	"time"
 
-	"github.com/ARCoder181105/netdiag/pkg/output"
 	"github.com/spf13/cobra"
+
+	"github.com/ARCoder181105/netdiag/pkg/output"
 )
 
 var (

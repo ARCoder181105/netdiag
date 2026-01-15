@@ -8,10 +8,11 @@ import (
 	"net"
 	"time"
 
-	"github.com/ARCoder181105/netdiag/pkg/output"
 	"github.com/spf13/cobra"
 	"golang.org/x/net/icmp"
 	"golang.org/x/net/ipv4"
+
+	"github.com/ARCoder181105/netdiag/pkg/output"
 )
 
 var maxHops int

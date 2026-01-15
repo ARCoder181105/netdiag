@@ -9,10 +9,11 @@ import (
 	"sync"
 	"time"
 
-	"github.com/ARCoder181105/netdiag/pkg/output"
 	probing "github.com/prometheus-community/pro-bing"
 	"github.com/spf13/cobra"
 	"golang.org/x/sync/errgroup"
+
+	"github.com/ARCoder181105/netdiag/pkg/output"
 )
 
 var (
@@ -42,7 +43,6 @@ Examples:
   netdiag ping -c 5 -i 2 github.com cloudflare.com`,
 	Args: cobra.MinimumNArgs(1),
 	Run: func(cmd *cobra.Command, args []string) {
-
 		group, _ := errgroup.WithContext(context.Background())
 		group.SetLimit(20)
 		var lock sync.Mutex
@@ -123,7 +123,6 @@ Examples:
 
 		// Print the table
 		output.PrintTable(headers, rows)
-
 	},
 }
 

@@ -7,9 +7,10 @@ import (
 	"fmt"
 	"strings"
 
-	"github.com/ARCoder181105/netdiag/pkg/output"
 	"github.com/likexian/whois"
 	"github.com/spf13/cobra"
+
+	"github.com/ARCoder181105/netdiag/pkg/output"
 )
 
 // whoisCmd represents the whois command

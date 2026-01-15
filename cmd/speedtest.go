@@ -7,9 +7,10 @@ import (
 	"fmt"
 	"strconv"
 
-	"github.com/ARCoder181105/netdiag/pkg/output"
 	"github.com/showwin/speedtest-go/speedtest"
 	"github.com/spf13/cobra"
+
+	"github.com/ARCoder181105/netdiag/pkg/output"
 )
 
 var (
@@ -32,7 +33,6 @@ Examples:
   netdiag speedtest --no-upload
   netdiag speedtest --server 12345`,
 	Run: func(cmd *cobra.Command, args []string) {
-
 		output.PrintInfo("🌐 Starting Internet Speed Test...\n")
 
 		output.PrintInfo("Fetching user information...")

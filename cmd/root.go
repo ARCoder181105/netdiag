@@ -11,9 +11,11 @@ import (
 )
 
 // Variables to store flag values
-var jsonOutput bool
-var logFilePath string
-var showVersion bool
+var (
+	jsonOutput  bool
+	logFilePath string
+	showVersion bool
+)
 
 // Version info variables
 var (
@@ -57,7 +59,7 @@ func init() {
 	// Global flags (PersistentFlags) apply to this command and all subcommands
 	rootCmd.PersistentFlags().BoolVarP(&jsonOutput, "json", "j", false, "Output JSON format")
 	rootCmd.PersistentFlags().StringVarP(&logFilePath, "log-file", "l", "", "Path to the log file")
-	
+
 	// Add version flag
 	rootCmd.Flags().BoolVarP(&showVersion, "version", "v", false, "Show version information")
 }

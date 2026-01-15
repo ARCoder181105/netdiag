@@ -40,7 +40,7 @@ test:
 	fi
 
 lint:
-	golangci-lint run --timeout=5m
+	golangci-lint run --timeout=5m --fix
 
 deps:
 	$(GO) mod download
@@ -57,3 +57,8 @@ dist:
 clean:
 	rm -f $(BINARY_NAME)
 	rm -rf dist/
+
+fmt:
+	$(GO) run mvdan.cc/gofumpt@latest -w .
+	$(GO) run github.com/daixiang0/gci@latest write -s standard -s default -s "prefix(github.com/ARCoder181105/netdiag)" .
+
