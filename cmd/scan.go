@@ -1,6 +1,7 @@
 /*
 Copyright © 2026 ARCoder181105 <EMAIL ADDRESS>
 */
+
 // Package cmd implements the CLI commands.
 package cmd
 
