@@ -600,7 +600,7 @@ Built with these excellent Go libraries:
 
 ## 📞 Support
 
-For issues, questions, or feature requests, please [open an issue](https://github.com/ARCoder181105/netdiag/issues).
+
 
 ---
 
