@@ -1,4 +1,4 @@
-# Contributing to netdiag 🤝
+# Contributing to netdiag 
 
 Thank you for your interest in contributing to **netdiag**! We welcome contributions from the community, whether it's bug fixes, new features, documentation improvements, or suggestions.
 
