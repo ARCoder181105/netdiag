@@ -2,7 +2,7 @@
 
 This document is the hands-on, task-by-task implementation guide. Each phase has a checklist of concrete files to create, code to write, and commands to run to verify the work is done. Follow phases in order — each one builds on the last.
 
-For the high-level "why" behind each decision, see [`docs/MASTERPLAN.md`](docs/MASTERPLAN.md).  
+For the high-level "why" behind each decision, see [`MASTERPLAN.md`](MASTERPLAN.md).  
 For the version roadmap summary, see [`ROADMAP.md`](ROADMAP.md).
 
 ---
