@@ -41,11 +41,12 @@ type Result struct {
 	Target    string    `json:"target"`
 
 	// Payloads
-	PingData  *PingData  `json:"ping_data,omitempty"`
-	ScanData  *ScanData  `json:"scan_data,omitempty"`
-	TraceData *TraceData `json:"trace_data,omitempty"`
-	HTTPData  *HTTPData  `json:"http_data,omitempty"`
-	DNSData   *DNSData   `json:"dns_data,omitempty"`
+	PingData     *PingData     `json:"ping_data,omitempty"`
+	ScanData     *ScanData     `json:"scan_data,omitempty"`
+	TraceData    *TraceData    `json:"trace_data,omitempty"`
+	HTTPData     *HTTPData     `json:"http_data,omitempty"`
+	DNSData      *DNSData      `json:"dns_data,omitempty"`
+	DiscoverData *DiscoverData `json:"discover_data,omitempty"`
 
 	// Outcome
 	Message  string   `json:"message"`
@@ -74,6 +75,20 @@ type ScanData struct {
 	TotalPorts int    `json:"total_ports"`
 	OpenPorts  []int  `json:"open_ports"`
 	ScanMethod string `json:"scan_method"`
+}
+
+// DiscoverDevice represents a single active device found on the network.
+type DiscoverDevice struct {
+	IP       string        `json:"ip"`
+	HostName string        `json:"host_name"`
+	Latency  time.Duration `json:"latency"`
+}
+
+// DiscoverData contains the results of a local network sweep.
+type DiscoverData struct {
+	LocalIP string           `json:"local_ip"`
+	Prefix  string           `json:"prefix"`
+	Devices []DiscoverDevice `json:"devices"`
 }
 
 type TraceHop struct {
