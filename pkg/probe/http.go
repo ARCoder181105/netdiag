@@ -15,14 +15,14 @@ type HTTPProber struct {
 	SkipTLSVerify bool
 }
 
-func (p *HTTPProber) Type() string {
+func (h *HTTPProber) Type() string {
 	return "http"
 }
 
-func (p *HTTPProber) Probe(ctx context.Context) (Result, error) {
+func (h *HTTPProber) Probe(ctx context.Context) (Result, error) {
 	startTime := time.Now()
 
-	req, err := http.NewRequestWithContext(ctx, p.Method, p.URL, nil)
+	req, err := http.NewRequestWithContext(ctx, h.Method, h.URL, nil)
 	if err != nil {
 		return Result{}, fmt.Errorf("failed to create request: %w", err)
 	}
@@ -30,7 +30,7 @@ func (p *HTTPProber) Probe(ctx context.Context) (Result, error) {
 	redirects := 0
 
 	client := &http.Client{
-		Timeout: p.Timeout,
+		Timeout: h.Timeout,
 		CheckRedirect: func(req *http.Request, via []*http.Request) error {
 			if len(via) >= 10 {
 				return fmt.Errorf("stopped after 10 redirects")
@@ -40,7 +40,7 @@ func (p *HTTPProber) Probe(ctx context.Context) (Result, error) {
 		},
 	}
 
-	if p.SkipTLSVerify {
+	if h.SkipTLSVerify {
 		client.Transport = &http.Transport{
 			TLSClientConfig: &tls.Config{InsecureSkipVerify: true},
 		}
@@ -51,7 +51,7 @@ func (p *HTTPProber) Probe(ctx context.Context) (Result, error) {
 		return Result{
 			TimeStamp: time.Now(),
 			ProbeType: "http",
-			Target:    p.URL,
+			Target:    h.URL,
 			Message:   err.Error(),
 			Severity:  SeverityError,
 			Success:   false,
@@ -104,7 +104,7 @@ func (p *HTTPProber) Probe(ctx context.Context) (Result, error) {
 	return Result{
 		TimeStamp: time.Now(),
 		ProbeType: "http",
-		Target:    p.URL,
+		Target:    h.URL,
 		HTTPData:  httpData,
 		Message:   message,
 		Severity:  severity,

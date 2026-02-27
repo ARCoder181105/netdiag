@@ -18,19 +18,19 @@ type ConnectScanner struct {
 	Concurrency int
 }
 
-func (p *ConnectScanner) Type() string {
+func (c *ConnectScanner) Type() string {
 	return "scan"
 }
 
-func (p *ConnectScanner) Probe(ctx context.Context) (Result, error) {
+func (c *ConnectScanner) Probe(ctx context.Context) (Result, error) {
 	startTime := time.Now()
 
 	var openPorts []int
 	results := make(chan int)
 	var wg sync.WaitGroup
-	sem := make(chan struct{}, p.Concurrency)
+	sem := make(chan struct{}, c.Concurrency)
 
-	for _, port := range p.Ports {
+	for _, port := range c.Ports {
 		wg.Add(1)
 
 		go func(port int) {
@@ -43,8 +43,8 @@ func (p *ConnectScanner) Probe(ctx context.Context) (Result, error) {
 			}
 			defer func() { <-sem }()
 
-			dialer := net.Dialer{Timeout: p.Timeout}
-			address := net.JoinHostPort(p.Host, strconv.Itoa(port))
+			dialer := net.Dialer{Timeout: c.Timeout}
+			address := net.JoinHostPort(c.Host, strconv.Itoa(port))
 
 			conn, err := dialer.DialContext(ctx, "tcp", address)
 			if err == nil {
@@ -70,11 +70,11 @@ func (p *ConnectScanner) Probe(ctx context.Context) (Result, error) {
 	if ms == 0 {
 		ms = 1
 	}
-	rate := int64(len(p.Ports)) / ms
+	rate := int64(len(c.Ports)) / ms
 
 	data := &ScanData{
 		OpenPorts:  openPorts,
-		TotalPorts: len(p.Ports),
+		TotalPorts: len(c.Ports),
 		ScanMethod: "connect",
 		ScanRateMs: rate,
 	}
@@ -82,7 +82,7 @@ func (p *ConnectScanner) Probe(ctx context.Context) (Result, error) {
 	message := fmt.Sprintf("Found %d open ports", len(openPorts))
 
 	return Result{
-		Target:    p.Host,
+		Target:    c.Host,
 		TimeStamp: time.Now(),
 		ProbeType: "scan",
 		Success:   true,
