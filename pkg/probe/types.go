@@ -17,6 +17,21 @@ const (
 	SeverityUnknown
 )
 
+func (s Severity) String() string {
+	switch s {
+	case SeverityOK:
+		return "OK"
+	case SeverityWarning:
+		return "Warning"
+	case SeverityError:
+		return "Error"
+	case SeverityUnknown:
+		return "Unknown"
+	default:
+		return "Unknown"
+	}
+}
+
 // Result represents the outcome of a network probe.
 // It contains metadata about the probe and optional payloads for specific probe types.
 type Result struct {
@@ -49,7 +64,7 @@ type PingData struct {
 	MinRTT      time.Duration `json:"min_rtt"`
 	MaxRTT      time.Duration `json:"max_rtt"`
 	AvgRTT      time.Duration `json:"avg_rtt"`
-	Jitter      time.Duration `json:"jitter"`
+	StdDevRTT   time.Duration `json:"stdDev_rtt"`
 }
 
 // ScanData contains information about a port scan probe.
