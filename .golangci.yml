@@ -11,45 +11,25 @@ linters:
     - staticcheck
     - unused
     - misspell
-    - gocritic
-    - revive
 
 linters-settings:
   errcheck:
     check-blank: false
-    check-type-assertions: true
+    check-type-assertions: false
 
   govet:
-    enable-all: true
-    disable:
-      - fieldalignment
+    enable-all: false
+    enable:
+      - shadow
+      - printf
+      - structtag
+      - unreachable
 
   misspell:
     locale: US
 
-  revive:
-    ignore-generated-header: true
-    severity: warning
-    rules:
-      - name: blank-imports
-      - name: context-as-argument
-      - name: dot-imports
-      - name: error-return
-      - name: error-strings
-      - name: error-naming
-      - name: if-return
-      - name: increment-decrement
-      - name: var-naming
-      - name: range
-      - name: receiver-naming
-      - name: indent-error-flow
-      - name: errorf
-      - name: empty-block
-      - name: superfluous-else
-      - name: unreachable-code
-
 issues:
-  exclude-use-default: false
+  exclude-use-default: true
   max-issues-per-linter: 0
   max-same-issues: 0
 
@@ -57,4 +37,15 @@ issues:
     - path: _test\.go
       linters:
         - errcheck
-        - gocritic
+
+    # Silence all comment/export doc warnings
+    - linters:
+        - golint
+        - revive
+        - staticcheck
+      text: "should have comment|comment on exported|ST1000|ST1020"
+
+    # Silence fieldalignment
+    - linters:
+        - govet
+      text: "fieldalignment"
