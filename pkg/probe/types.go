@@ -55,17 +55,16 @@ type PingData struct {
 // ScanData contains information about a port scan probe.
 type ScanData struct {
 	ScanRateMs int64  `json:"scan_rate_ms"`
-	OpenPorts  []int  `json:"open_ports"`
 	TotalPorts int    `json:"total_ports"`
+	OpenPorts  []int  `json:"open_ports"`
 	ScanMethod string `json:"scan_method"`
 }
 
-// TraceHop represents a single hop in a traceroute probe.
 type TraceHop struct {
-	HopNumber int           `json:"hop_number"`
 	IP        string        `json:"ip"`
 	HostName  string        `json:"host_name"`
 	RTT       time.Duration `json:"rtt"`
+	HopNumber int           `json:"hop_number"`
 	Timeout   bool          `json:"timeout"`
 }
 
@@ -76,13 +75,13 @@ type TraceData struct {
 
 // HTTPData contains the results of an HTTP probe.
 type HTTPData struct {
-	StatusCode    int           `json:"status_code"`
-	Latency       time.Duration `json:"latency"`
-	TLSValid      bool          `json:"tls_valid"`
-	TLSDaysLeft   int           `json:"tls_days_left"`
 	TLSIssuer     string        `json:"tls_issuer"`
-	Redirects     int           `json:"redirects"`
+	Latency       time.Duration `json:"latency"`
 	ContentLength int64         `json:"content_length"`
+	StatusCode    int           `json:"status_code"`
+	TLSDaysLeft   int           `json:"tls_days_left"`
+	Redirects     int           `json:"redirects"`
+	TLSValid      bool          `json:"tls_valid"`
 }
 
 // Prober defines the interface that all network probes must implement.
