@@ -45,6 +45,7 @@ type Result struct {
 	ScanData  *ScanData  `json:"scan_data,omitempty"`
 	TraceData *TraceData `json:"trace_data,omitempty"`
 	HTTPData  *HTTPData  `json:"http_data,omitempty"`
+	DNSData   *DNSData   `json:"dns_data,omitempty"`
 
 	// Outcome
 	Message  string   `json:"message"`
@@ -86,6 +87,18 @@ type TraceHop struct {
 // TraceData contains the sequence of hops from a traceroute probe.
 type TraceData struct {
 	Hops []TraceHop `json:"hops"`
+}
+
+// DNSRecord represents a single DNS record.
+type DNSRecord struct {
+	Type  string `json:"type"`
+	Value string `json:"value"`
+}
+
+// DNSData contains the results of a DNS lookup probe.
+type DNSData struct {
+	Server  string      `json:"server"`
+	Records []DNSRecord `json:"records"`
 }
 
 // HTTPData contains the results of an HTTP probe.
