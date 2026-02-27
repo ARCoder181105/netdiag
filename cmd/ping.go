@@ -36,97 +36,86 @@ Examples:
   netdiag ping -c 5 -i 2 github.com cloudflare.com`,
 	Args: cobra.MinimumNArgs(1),
 	Run: func(_ *cobra.Command, args []string) {
-		headers := []string{
-			"Host",
-			"IP",
-			"Sent",
-			"Received",
-			"Loss",
-			"Min RTT",
-			"Avg RTT",
-			"Max RTT",
-			"StdDev RTT",
-			"Success",
-			"Severity",
-			"Message",
-		}
-
-		rows := [][]string{}
-
-		grp, _ := errgroup.WithContext(context.Background())
+		grp, ctx := errgroup.WithContext(context.Background())
 		var mu sync.Mutex
+		var results []probe.Result
 
 		for _, host := range args {
+			h := host // capture correctly
 
 			grp.Go(func() error {
 				prober := &probe.PingProber{
-					Host:     host,
+					Host:     h,
 					Count:    count,
 					Timeout:  timeout,
 					Interval: interval,
 				}
 
-				result, err := prober.Probe(context.Background())
+				result, err := prober.Probe(ctx)
+
+				// 1. If it hard-failed, create a fallback Result so JSON sees the error!
 				if err != nil {
-					mu.Lock()
-					rows = append(rows, []string{
-						host,
-						"-",
-						"-",
-						"-",
-						"100.00%",
-						"-",
-						"-",
-						"-",
-						"-",
-						"false",
-						"error",
-						err.Error(),
-					})
-					mu.Unlock()
-					return nil
+					result = probe.Result{
+						Target:    h,
+						ProbeType: "ping",
+						Success:   false,
+						Severity:  probe.SeverityError,
+						Message:   err.Error(),
+						TimeStamp: time.Now(),
+					}
 				}
 
-				ip := "-"
-				sent := "-"
-				recv := "-"
-				loss := "100.00%"
-				min := "-"
-				avg := "-"
-				max := "-"
-				stddev := "-"
-
-				if result.PingData != nil {
-					ip = result.PingData.ResolvedIP
-					sent = fmt.Sprintf("%d", result.PingData.PacketsSent)
-					recv = fmt.Sprintf("%d", result.PingData.PacketsRecv)
-					loss = fmt.Sprintf("%.2f%%", result.PingData.PacketLoss)
-					min = result.PingData.MinRTT.String()
-					avg = result.PingData.AvgRTT.String()
-					max = result.PingData.MaxRTT.String()
-					stddev = result.PingData.StdDevRTT.String()
-				}
-
+				// 2. Only append to results
 				mu.Lock()
-				rows = append(rows, []string{
-					result.Target,
-					ip,
-					sent,
-					recv,
-					loss,
-					min,
-					avg,
-					max,
-					stddev,
-					fmt.Sprintf("%t", result.Success),
-					fmt.Sprintf("%v", result.Severity),
-					result.Message,
-				})
+				results = append(results, result)
 				mu.Unlock()
+
 				return nil
 			})
 		}
+
 		_ = grp.Wait()
+
+		// 3. JSON Output Mode Check
+		if jsonOutput {
+			output.PrintJSON(results)
+			return // Exit early! No need to build the table.
+		}
+
+		// 4. Table Output Mode
+		headers := []string{
+			"Host", "IP", "Sent", "Received", "Loss",
+			"Min RTT", "Avg RTT", "Max RTT", "StdDev RTT",
+			"Success", "Severity", "Message",
+		}
+		var rows [][]string
+
+		for _, result := range results {
+			ip, sent, recv := "-", "-", "-"
+			loss := "100.00%"
+			min, avg, max, stddev := "-", "-", "-", "-"
+
+			if result.PingData != nil {
+				ip = result.PingData.ResolvedIP
+				sent = fmt.Sprintf("%d", result.PingData.PacketsSent)
+				recv = fmt.Sprintf("%d", result.PingData.PacketsRecv)
+				loss = fmt.Sprintf("%.2f%%", result.PingData.PacketLoss)
+				min = result.PingData.MinRTT.String()
+				avg = result.PingData.AvgRTT.String()
+				max = result.PingData.MaxRTT.String()
+				stddev = result.PingData.StdDevRTT.String()
+			}
+
+			rows = append(rows, []string{
+				result.Target, ip, sent, recv, loss,
+				min, avg, max, stddev,
+				fmt.Sprintf("%t", result.Success),
+				result.Severity.String(),
+				result.Message,
+			})
+		}
+
+		fmt.Println()
 		output.PrintTable(headers, rows)
 	},
 }

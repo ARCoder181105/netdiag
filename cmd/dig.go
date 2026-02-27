@@ -45,12 +45,6 @@ Examples:
 			recordType = args[1]
 		}
 
-		output.PrintInfo(fmt.Sprintf(
-			"Querying %s records for %s...",
-			strings.ToUpper(recordType),
-			args[0],
-		))
-
 		prober := &probe.DigProber{
 			Host:       args[0],
 			Server:     digServer,
@@ -59,10 +53,29 @@ Examples:
 		}
 
 		result, err := prober.Probe(context.Background())
+
+		// 1️⃣ Hard failure fallback (for JSON consistency)
 		if err != nil {
-			output.PrintError(err.Error())
+			result = probe.Result{
+				Target:    args[0],
+				ProbeType: "dns",
+				Success:   false,
+				Severity:  probe.SeverityError,
+				Message:   err.Error(),
+				TimeStamp: time.Now(),
+			}
+		}
+
+		if jsonOutput {
+			output.PrintJSON(result)
 			return
 		}
+
+		output.PrintInfo(fmt.Sprintf(
+			"Querying %s records for %s...",
+			strings.ToUpper(recordType),
+			args[0],
+		))
 
 		if !result.Success || result.DNSData == nil {
 			output.PrintError(result.Message)

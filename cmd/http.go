@@ -51,12 +51,25 @@ Examples:
 		}
 
 		result, err := prober.Probe(context.Background())
+
 		if err != nil {
-			output.PrintError(err.Error())
+			result = probe.Result{
+				Target:    url,
+				ProbeType: "http",
+				Success:   false,
+				Severity:  probe.SeverityError,
+				Message:   err.Error(),
+				TimeStamp: time.Now(),
+			}
+		}
+
+		if jsonOutput {
+			output.PrintJSON(result)
 			return
 		}
 
-		// Only treat it as failure if HTTPData is missing (true transport failure)
+
+		// True transport failure (DNS, timeout, etc.)
 		if result.HTTPData == nil {
 			output.PrintError(result.Message)
 			return

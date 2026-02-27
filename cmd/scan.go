@@ -50,8 +50,20 @@ Examples:
 		}
 
 		result, err := scanner.Probe(context.Background())
+
 		if err != nil {
-			output.PrintError(err.Error())
+			result = probe.Result{
+				Target:    host,
+				ProbeType: "scan",
+				Success:   false,
+				Severity:  probe.SeverityError,
+				Message:   err.Error(),
+				TimeStamp: time.Now(),
+			}
+		}
+
+		if jsonOutput {
+			output.PrintJSON(result)
 			return
 		}
 

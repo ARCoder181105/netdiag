@@ -21,13 +21,24 @@ var discoverCmd = &cobra.Command{
 			Timeout: time.Duration(discoverTimeout) * time.Millisecond,
 		}
 
-		output.PrintInfo("🔍 Scanning local network (this may take a moment)...")
-
 		result, err := prober.Probe(context.Background())
+
 		if err != nil {
-			output.PrintError(err.Error())
+			result = probe.Result{
+				ProbeType: "discover",
+				Success:   false,
+				Severity:  probe.SeverityError,
+				Message:   err.Error(),
+				TimeStamp: time.Now(),
+			}
+		}
+
+		if jsonOutput {
+			output.PrintJSON(result)
 			return
 		}
+
+		output.PrintInfo("🔍 Scanning local network (this may take a moment)...")
 
 		if !result.Success || result.DiscoverData == nil {
 			output.PrintError(result.Message)

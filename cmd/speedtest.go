@@ -6,13 +6,13 @@ Copyright © 2026 ARCoder181105 <EMAIL ADDRESS>
 package cmd
 
 import (
+	"context"
 	"fmt"
-	"strconv"
 
-	"github.com/showwin/speedtest-go/speedtest"
 	"github.com/spf13/cobra"
 
 	"github.com/ARCoder181105/netdiag/pkg/output"
+	"github.com/ARCoder181105/netdiag/pkg/probe"
 )
 
 var (
@@ -35,172 +35,67 @@ Examples:
   netdiag speedtest --no-upload
   netdiag speedtest --server 12345`,
 	Run: func(_ *cobra.Command, _ []string) {
-		output.PrintInfo("🌐 Starting Internet Speed Test...\n")
 
-		output.PrintInfo("Fetching user information...")
-		user, err := speedtest.FetchUserInfo()
+		prober := &probe.SpeedTestProber{
+			ServerID: serverID,
+			NoUpload: noUpload,
+		}
+
+		output.PrintInfo("🌐 Running Internet Speed Test (this may take a moment)...")
+
+		result, err := prober.Probe(context.Background())
 		if err != nil {
-			output.PrintError(fmt.Sprintf("Error fetching user info: %v", err))
+			output.PrintError(err.Error())
 			return
 		}
 
-		output.PrintSuccess(fmt.Sprintf("ISP: %s", user.String()))
-		output.PrintSuccess(fmt.Sprintf("Public IP: %s\n", user.IP))
-
-		output.PrintInfo("Fetching server list...")
-		serverList, err := speedtest.FetchServers()
-		if err != nil {
-			output.PrintError(fmt.Sprintf("Error fetching servers: %v", err))
+		// JSON mode
+		if jsonOutput {
+			output.PrintJSON(result)
 			return
 		}
 
-		var targets speedtest.Servers
-
-		if serverID != "" {
-			output.PrintInfo(fmt.Sprintf("Looking for server ID: %s", serverID))
-			serverIDInt, convErr := strconv.Atoi(serverID)
-			if convErr != nil {
-				output.PrintError("Invalid server ID format")
-				return
-			}
-
-			targets, err = serverList.FindServer([]int{serverIDInt})
-			if err != nil || len(targets) == 0 {
-				output.PrintError("Server not found")
-				return
-			}
-		} else {
-			output.PrintInfo("Finding closest server...")
-			targets, err = serverList.FindServer([]int{})
-			if err != nil || len(targets) == 0 {
-				output.PrintError("No servers found")
-				return
-			}
-		}
-
-		target := targets[0]
-		output.PrintSuccess(fmt.Sprintf(
-			"Testing against: %s (%s) - %s\n",
-			target.Name,
-			target.Country,
-			target.Sponsor,
-		))
-
-		output.PrintInfo("🏓 Running Ping Test...")
-		if err := target.PingTest(nil); err != nil {
-			output.PrintWarning(fmt.Sprintf("Ping failed: %v", err))
-		} else {
-			output.PrintSuccess(fmt.Sprintf(
-				"Ping: %.2f ms",
-				float64(target.Latency.Milliseconds()),
-			))
-		}
-
-		output.PrintInfo("⬇️  Running Download Test...")
-		if err := target.DownloadTest(); err != nil {
-			output.PrintError(fmt.Sprintf("Download failed: %v", err))
+		// Graceful failure
+		if result.SpeedTestData == nil {
+			output.PrintError(result.Message)
 			return
 		}
 
-		output.PrintSuccess(fmt.Sprintf(
-			"Download Speed: %s",
-			formatSpeed(float64(target.DLSpeed)),
-		))
-
-		if !noUpload {
-			output.PrintInfo("⬆️  Running Upload Test...")
-			if err := target.UploadTest(); err != nil {
-				output.PrintError(fmt.Sprintf("Upload failed: %v", err))
-				return
-			}
-
-			output.PrintSuccess(fmt.Sprintf(
-				"Upload Speed: %s",
-				formatSpeed(float64(target.ULSpeed)),
-			))
-		} else {
-			output.PrintWarning("Upload test skipped (--no-upload)")
-		}
-
-		fmt.Println("\n=== Speed Test Results ===")
+		data := result.SpeedTestData
 
 		headers := []string{"Metric", "Value"}
 		rows := [][]string{
-			{"Server", fmt.Sprintf("%s (%s)", target.Name, target.Country)},
-			{"Sponsor", target.Sponsor},
-			{"Distance", fmt.Sprintf("%.2f km", target.Distance)},
-			{"Ping", fmt.Sprintf("%.2f ms", float64(target.Latency.Milliseconds()))},
-			{"Download", formatSpeed(float64(target.DLSpeed))},
+			{"ISP", data.ISP},
+			{"Public IP", data.PublicIP},
+			{"Server", fmt.Sprintf("%s (%s)", data.ServerName, data.Country)},
+			{"Sponsor", data.Sponsor},
+			{"Distance", fmt.Sprintf("%.2f km", data.DistanceKm)},
+			{"Ping", fmt.Sprintf("%.2f ms", data.PingMs)},
+			{"Download", fmt.Sprintf("%.2f Mbps", data.DownloadMbps)},
 		}
 
 		if !noUpload {
 			rows = append(rows, []string{
-				"Upload", formatSpeed(float64(target.ULSpeed)),
+				"Upload", fmt.Sprintf("%.2f Mbps", data.UploadMbps),
 			})
 		}
 
-		output.PrintTable(headers, rows)
-
 		fmt.Println()
-		assessConnection(
-			float64(target.DLSpeed),
-			float64(target.ULSpeed),
-			float64(target.Latency.Milliseconds()),
-		)
-	},
-}
+		output.PrintTable(headers, rows)
+		fmt.Println()
 
-func formatSpeed(speed float64) string {
-	bitsPerSec := speed * 8
-	mbps := bitsPerSec / 1_000_000
-
-	if mbps >= 1000 {
-		gbps := mbps / 1000
-		return fmt.Sprintf("%.2f Gbps", gbps)
-	}
-	return fmt.Sprintf("%.2f Mbps", mbps)
-}
-
-func assessConnection(dlSpeed, ulSpeed, pingMs float64) {
-	dlMbps := (dlSpeed * 8) / 1_000_000
-	ulMbps := (ulSpeed * 8) / 1_000_000
-
-	output.PrintInfo("📊 Connection Quality Assessment:")
-
-	switch {
-	case dlMbps >= 100:
-		output.PrintSuccess(fmt.Sprintf("  Download: Excellent (%.0f Mbps)", dlMbps))
-	case dlMbps >= 25:
-		output.PrintSuccess(fmt.Sprintf("  Download: Good (%.0f Mbps)", dlMbps))
-	case dlMbps >= 10:
-		output.PrintWarning(fmt.Sprintf("  Download: Fair (%.0f Mbps)", dlMbps))
-	default:
-		output.PrintError("  Download: Poor (<10 Mbps)")
-	}
-
-	if ulMbps > 0 {
-		switch {
-		case ulMbps >= 50:
-			output.PrintSuccess(fmt.Sprintf("  Upload: Excellent (%.0f Mbps)", ulMbps))
-		case ulMbps >= 10:
-			output.PrintSuccess(fmt.Sprintf("  Upload: Good (%.0f Mbps)", ulMbps))
-		case ulMbps >= 5:
-			output.PrintWarning(fmt.Sprintf("  Upload: Fair (%.0f Mbps)", ulMbps))
+		// Severity-based colored message
+		switch result.Severity {
+		case probe.SeverityOK:
+			output.PrintSuccess(result.Message)
+		case probe.SeverityWarning:
+			output.PrintWarning(result.Message)
+		case probe.SeverityError:
+			output.PrintError(result.Message)
 		default:
-			output.PrintError("  Upload: Poor (<5 Mbps)")
+			output.PrintInfo(result.Message)
 		}
-	}
-
-	switch {
-	case pingMs < 20:
-		output.PrintSuccess("  Ping: Excellent (<20 ms)")
-	case pingMs < 50:
-		output.PrintSuccess("  Ping: Good (<50 ms)")
-	case pingMs < 100:
-		output.PrintWarning("  Ping: Fair (<100 ms)")
-	default:
-		output.PrintError("  Ping: Poor (>=100 ms)")
-	}
+	},
 }
 
 func init() {

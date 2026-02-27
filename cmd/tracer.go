@@ -36,7 +36,7 @@ Example:
 		prober := &probe.TraceProber{
 			Host:    args[0],
 			MaxHops: maxHops,
-			Timeout: traceTimeout, // ✅ No multiplication
+			Timeout: traceTimeout,
 		}
 
 		result, err := prober.Probe(context.Background())
@@ -45,6 +45,12 @@ Example:
 			return
 		}
 
+		if jsonOutput {
+			output.PrintJSON(result)
+			return
+		}
+
+		// Graceful failure (DNS / Permission)
 		if !result.Success || result.TraceData == nil {
 			output.PrintError(result.Message)
 			return
@@ -83,6 +89,7 @@ Example:
 		output.PrintTable(headers, rows)
 		fmt.Println()
 
+		// Severity-based colored message
 		switch result.Severity {
 		case probe.SeverityOK:
 			output.PrintSuccess(result.Message)

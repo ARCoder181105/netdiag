@@ -41,12 +41,14 @@ type Result struct {
 	Target    string    `json:"target"`
 
 	// Payloads
-	PingData     *PingData     `json:"ping_data,omitempty"`
-	ScanData     *ScanData     `json:"scan_data,omitempty"`
-	TraceData    *TraceData    `json:"trace_data,omitempty"`
-	HTTPData     *HTTPData     `json:"http_data,omitempty"`
-	DNSData      *DNSData      `json:"dns_data,omitempty"`
-	DiscoverData *DiscoverData `json:"discover_data,omitempty"`
+	PingData      *PingData      `json:"ping_data,omitempty"`
+	ScanData      *ScanData      `json:"scan_data,omitempty"`
+	TraceData     *TraceData     `json:"trace_data,omitempty"`
+	HTTPData      *HTTPData      `json:"http_data,omitempty"`
+	DNSData       *DNSData       `json:"dns_data,omitempty"`
+	DiscoverData  *DiscoverData  `json:"discover_data,omitempty"`
+	SpeedTestData *SpeedTestData `json:"speedtest_data,omitempty"`
+	WhoisData     *WhoisData     `json:"whois_data,omitempty"`
 
 	// Outcome
 	Message  string   `json:"message"`
@@ -91,6 +93,11 @@ type DiscoverData struct {
 	Devices []DiscoverDevice `json:"devices"`
 }
 
+// WhoisData contains raw WHOIS response.
+type WhoisData struct {
+	Raw string `json:"raw"`
+}
+
 type TraceHop struct {
 	IP        string        `json:"ip"`
 	HostName  string        `json:"host_name"`
@@ -125,6 +132,19 @@ type HTTPData struct {
 	TLSDaysLeft   int           `json:"tls_days_left"`
 	Redirects     int           `json:"redirects"`
 	TLSValid      bool          `json:"tls_valid"`
+}
+
+// SpeedTestData contains the results of an internet speed test.
+type SpeedTestData struct {
+	ISP          string  `json:"isp"`
+	PublicIP     string  `json:"public_ip"`
+	ServerName   string  `json:"server_name"`
+	Country      string  `json:"country"`
+	Sponsor      string  `json:"sponsor"`
+	DistanceKm   float64 `json:"distance_km"`
+	PingMs       float64 `json:"ping_ms"`
+	DownloadMbps float64 `json:"download_mbps"`
+	UploadMbps   float64 `json:"upload_mbps,omitempty"`
 }
 
 // Prober defines the interface that all network probes must implement.
