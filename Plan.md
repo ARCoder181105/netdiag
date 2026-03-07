@@ -22,40 +22,40 @@ For the version roadmap summary, see [`ROADMAP.md`](ROADMAP.md).
 
 This is the most important file in the entire refactor. Everything downstream depends on it.
 
-- [ ] Create `pkg/probe/` directory
-- [ ] Define `Severity` type with constants `SeverityOK`, `SeverityWarning`, `SeverityError`, `SeverityUnknown`
-- [ ] Define `Result` struct with fields: `ProbeType`, `Target`, `Timestamp`, `Severity`, `Success`, `Message`, `Latency`, and optional payload pointers
-- [ ] Define payload structs: `PingData`, `ScanData`, `TraceData`, `HTTPData`, `DNSData`
-- [ ] Define `Prober` interface:
+- [x] Create `pkg/probe/` directory
+- [x] Define `Severity` type with constants `SeverityOK`, `SeverityWarning`, `SeverityError`, `SeverityUnknown`
+- [x] Define `Result` struct with fields: `ProbeType`, `Target`, `Timestamp`, `Severity`, `Success`, `Message`, `Latency`, and optional payload pointers
+- [x] Define payload structs: `PingData`, `ScanData`, `TraceData`, `HTTPData`, `DNSData`
+- [x] Define `Prober` interface:
   ```go
   type Prober interface {
       Probe(ctx context.Context) (Result, error)
       Type() string
   }
   ```
-- [ ] Add `json` struct tags to every exported field (needed for `--json` output and SQLite storage)
+- [x] Add `json` struct tags to every exported field (needed for `--json` output and SQLite storage)
 - [ ] Write `Result.IsAnomaly() bool` helper (stub for Phase 4)
 
 ### 0.2 Extract probe logic into `pkg/probe/`
 
 For each file below: copy the core logic from `cmd/`, wrap it in a struct that implements `Prober`, keep `cmd/` as a thin wrapper that calls it.
 
-- [ ] Create `pkg/probe/ping.go` — extract from `cmd/ping.go`
+- [x] Create `pkg/probe/ping.go` — extract from `cmd/ping.go`
   - Struct `PingProber { Host string; Count int; Timeout time.Duration; Interval time.Duration }`
   - `Probe(ctx)` returns `Result` with `PingData` populated
-- [ ] Create `pkg/probe/scan.go` — extract from `cmd/scan.go`
+- [x] Create `pkg/probe/scan.go` — extract from `cmd/scan.go`
   - Move `parsePortRange()` here (it's a pure function, easiest to test)
   - Struct `ConnectScanner { Host string; Ports []int; Timeout time.Duration; Concurrency int }`
-- [ ] Create `pkg/probe/trace.go` — extract from `cmd/tracer.go`
+- [x] Create `pkg/probe/trace.go` — extract from `cmd/tracer.go`
   - Struct `TraceProber { Host string; MaxHops int }`
-- [ ] Create `pkg/probe/http.go` — extract from `cmd/http.go`
+- [x] Create `pkg/probe/http.go` — extract from `cmd/http.go`
   - Struct `HTTPProber { URL string; Timeout time.Duration; Method string }`
-- [ ] Create `pkg/probe/dns.go` — extract from `cmd/dig.go`
+- [x] Create `pkg/probe/dns.go` — extract from `cmd/dig.go`
   - Struct `DNSProber { Domain string; RecordType string }`
-- [ ] Create `pkg/probe/discover.go` — extract from `cmd/discover.go`
+- [x] Create `pkg/probe/discover.go` — extract from `cmd/discover.go`
   - Struct `DiscoverProber { Timeout time.Duration }`
-- [ ] Update all `cmd/*.go` files to call `pkg/probe/` instead of doing work directly
-- [ ] Confirm `go build .` still passes after refactor
+- [x] Update all `cmd/*.go` files to call `pkg/probe/` instead of doing work directly
+- [x] Confirm `go build .` still passes after refactor
 
 ### 0.3 Create `pkg/logger/logger.go`
 
@@ -85,8 +85,8 @@ For each file below: copy the core logic from `cmd/`, wrap it in a struct that i
 
 ### 0.5 Wire `--json` output mode
 
-- [ ] Add `outputJSON(result probe.Result)` function to `pkg/output/printer.go`
-- [ ] In each `cmd/*.go` Run function, check `jsonOutput` flag and branch:
+- [x] Add `outputJSON(result probe.Result)` function to `pkg/output/printer.go`
+- [x] In each `cmd/*.go` Run function, check `jsonOutput` flag and branch:
   ```go
   if jsonOutput {
       output.PrintJSON(result)
@@ -94,7 +94,7 @@ For each file below: copy the core logic from `cmd/`, wrap it in a struct that i
   }
   output.PrintTable(headers, rows)
   ```
-- [ ] Test: `netdiag ping 1.1.1.1 --json | jq '.ping.avg_rtt_ns'`
+- [x] Test: `./netdiag ping 1.1.1.1 --json | jq '.[0].ping_data.avg_rtt'`
 
 ### 0.6 Write tests
 

@@ -35,11 +35,13 @@
 ### Quick Install (Recommended)
 
 **Linux/macOS:**
+
 ```bash
 curl -fsSL https://raw.githubusercontent.com/ARCoder181105/netdiag/main/install.sh | bash
 ```
 
 **Windows (PowerShell as Administrator):**
+
 ```powershell
 irm https://raw.githubusercontent.com/ARCoder181105/netdiag/main/install.ps1 | iex
 ```
@@ -52,12 +54,14 @@ irm https://raw.githubusercontent.com/ARCoder181105/netdiag/main/install.ps1 | i
 <summary><b>📦 Package Managers</b></summary>
 
 #### Homebrew (macOS/Linux)
+
 ```bash
 brew tap ARCoder181105/netdiag
 brew install netdiag
 ```
 
 #### Go Install
+
 ```bash
 go install github.com/ARCoder181105/netdiag@latest
 ```
@@ -72,6 +76,7 @@ Download the latest release for your platform:
 **[📥 Download Latest Release](https://github.com/ARCoder181105/netdiag/releases/latest)**
 
 Available platforms:
+
 - Linux (amd64, arm64)
 - macOS (Intel, Apple Silicon)
 - Windows (amd64)
@@ -79,6 +84,7 @@ Available platforms:
 After downloading:
 
 **Linux/macOS:**
+
 ```bash
 chmod +x netdiag-*
 sudo mv netdiag-* /usr/local/bin/netdiag
@@ -88,6 +94,7 @@ sudo setcap cap_net_raw+ep /usr/local/bin/netdiag
 ```
 
 **Windows:**
+
 - Extract `netdiag.exe`
 - Move to `C:\Windows\System32\` or add to PATH
 
@@ -97,6 +104,7 @@ sudo setcap cap_net_raw+ep /usr/local/bin/netdiag
 <summary><b>🔨 Build from Source</b></summary>
 
 **Prerequisites:**
+
 - Go 1.25 or higher
 - Git
 
@@ -146,11 +154,13 @@ If you need to remove netdiag, you can use the provided uninstallation scripts o
 ### Quick Uninstall
 
 **Linux/macOS:**
+
 ```bash
 curl -fsSL https://raw.githubusercontent.com/ARCoder181105/netdiag/main/uninstall.sh | bash
 ```
 
 **Windows (PowerShell as Administrator):**
+
 ```powershell
 irm https://raw.githubusercontent.com/ARCoder181105/netdiag/main/uninstall.ps1 | iex
 ```
@@ -163,6 +173,7 @@ irm https://raw.githubusercontent.com/ARCoder181105/netdiag/main/uninstall.ps1 |
 <summary><b>Removing netdiag from your system</b></summary>
 
 #### If installed via Makefile or script:
+
 ```bash
 # Using Makefile
 make uninstall
@@ -172,17 +183,20 @@ sudo rm /usr/local/bin/netdiag  # Linux/macOS
 ```
 
 #### If installed via Homebrew:
+
 ```bash
 brew uninstall netdiag
 brew untap ARCoder181105/netdiag
 ```
 
 #### If installed via Go:
+
 ```bash
 rm $(go env GOPATH)/bin/netdiag
 ```
 
 #### Windows:
+
 ```powershell
 # If installed to System32
 Remove-Item C:\Windows\System32\netdiag.exe
@@ -220,6 +234,15 @@ netdiag whois example.com
 netdiag discover
 ```
 
+### 💻 Advanced JSON Parsing
+
+`netdiag` natively supports JSON output for all commands using the `--json` flag. To parse and filter this output in the terminal, we highly recommend installing [jq](https://jqlang.github.io/jq/).
+
+**Example:** Get the average ping latency:
+
+````bash
+netdiag ping 1.1.1.1 --json | jq '.[0].ping_data.avg_rtt'
+
 ## 📖 Commands Reference
 
 ### `netdiag ping`
@@ -237,7 +260,7 @@ Flags:
 Examples:
   netdiag ping google.com
   netdiag ping -c 10 8.8.8.8 1.1.1.1
-```
+````
 
 **Output**: Displays a table with packet loss, average/min/max latency for each host.
 
@@ -321,7 +344,8 @@ Examples:
   netdiag http https://expired.badssl.com --timeout 10
 ```
 
-**Output**: 
+**Output**:
+
 - HTTP status code (color-coded by result)
 - Request latency
 - SSL certificate details (subject, issuer, validity period, expiration warning)
@@ -379,7 +403,8 @@ Examples:
   netdiag discover -t 1000
 ```
 
-**Output**: 
+**Output**:
+
 - Auto-detects your local IP range (e.g., 192.168.1.0/24)
 - Scans all 254 addresses
 - Displays table of discovered devices with IP, hostname, and latency
@@ -395,15 +420,17 @@ Examples:
 ### Key Technologies & Libraries
 
 #### 1. **CLI Framework: Cobra**
+
 - **Library**: [`github.com/spf13/cobra`](https://github.com/spf13/cobra)
 - **Why**: Industry-standard for complex CLI apps (used by Kubernetes, Hugo, GitHub CLI)
-- **Benefits**: 
+- **Benefits**:
   - Powerful nested subcommand support
   - Robust flag parsing
   - Auto-generated help text
   - Easy integration with configuration files via Viper
 
 #### 2. **Concurrency Management: errgroup**
+
 - **Library**: [`golang.org/x/sync/errgroup`](https://pkg.go.dev/golang.org/x/sync/errgroup)
 - **Why**: Professional error handling for concurrent operations
 - **Benefits**:
@@ -415,6 +442,7 @@ Examples:
 **Example Use Case**: When pinging 100 hosts, errgroup limits concurrent operations to 20, preventing system overload while efficiently managing errors.
 
 #### 3. **ICMP Operations: pro-bing**
+
 - **Library**: [`github.com/prometheus-community/pro-bing`](https://github.com/prometheus-community/pro-bing)
 - **Why**: Production-grade ICMP library from Prometheus community
 - **Features**:
@@ -425,11 +453,13 @@ Examples:
 #### 4. **Output Formatting**
 
 **Table Rendering**: [`github.com/olekukonko/tablewriter`](https://github.com/olekukonko/tablewriter)
+
 - Transforms raw data into clean, aligned ASCII tables
 - Automatic column width calculation
 - Border customization
 
 **Semantic Colors**: [`github.com/fatih/color`](https://github.com/fatih/color)
+
 - Cross-platform color support
 - Semantic color scheme:
   - 🟢 **Green**: Success (host up, port open, SSL valid)
@@ -456,10 +486,10 @@ for _, port := range ports {
     wg.Add(1)
     go func(p int) {
         defer wg.Done()
-        
+
         semaphore <- struct{}{}        // Acquire slot (blocks if full)
         defer func() { <-semaphore }() // Release slot
-        
+
         // Perform scan
         conn, err := net.DialTimeout("tcp", address, timeout)
         if err == nil {
@@ -484,12 +514,12 @@ for _, host := range hosts {
         if ctx.Err() != nil {
             return ctx.Err() // Stop if another goroutine failed
         }
-        
+
         pinger, err := probing.NewPinger(h)
         if err != nil {
             return err // Error propagates, cancels context
         }
-        
+
         return pinger.Run()
     })
 }
@@ -506,10 +536,12 @@ if err := group.Wait(); err != nil {
 Many network diagnostic operations (ping, traceroute) require **raw socket access** to craft custom ICMP packets. This is a privileged operation for security reasons.
 
 #### The Problem
+
 - Raw sockets allow packet crafting, which could be used maliciously
 - Operating systems restrict this capability to root/Administrator
 
 #### The Solution: Linux Capabilities
+
 Instead of running the entire program as root (`sudo netdiag`), grant only the specific capability needed:
 
 ```bash
@@ -589,6 +621,7 @@ This project is licensed under the MIT License - see the [LICENSE](LICENSE) file
 ## 🙏 Acknowledgments
 
 Built with these excellent Go libraries:
+
 - [Cobra](https://github.com/spf13/cobra) - CLI framework
 - [pro-bing](https://github.com/prometheus-community/pro-bing) - ICMP operations
 - [tablewriter](https://github.com/olekukonko/tablewriter) - Table formatting
