@@ -10,9 +10,11 @@ import (
 	"fmt"
 	"time"
 
+	"github.com/spf13/cobra"
+
+	"github.com/ARCoder181105/netdiag/pkg/logger"
 	"github.com/ARCoder181105/netdiag/pkg/output"
 	"github.com/ARCoder181105/netdiag/pkg/probe"
-	"github.com/spf13/cobra"
 )
 
 var (
@@ -21,7 +23,6 @@ var (
 	concurrency int
 )
 
-// scanCmd represents the scan command
 var scanCmd = &cobra.Command{
 	Use:   "scan <host>",
 	Short: "Scan for open TCP ports",
@@ -61,6 +62,22 @@ Examples:
 				TimeStamp: time.Now(),
 			}
 		}
+
+		// ── Structured logging ────────────────────────────────────────────────
+		if result.Success && result.ScanData != nil {
+			logger.Log.Info("scan completed",
+				"target", result.Target,
+				"total_ports", result.ScanData.TotalPorts,
+				"open_ports", result.ScanData.OpenPorts,
+				"scan_method", result.ScanData.ScanMethod,
+			)
+		} else {
+			logger.Log.Error("scan failed",
+				"target", result.Target,
+				"error", result.Message,
+			)
+		}
+		// ─────────────────────────────────────────────────────────────────────
 
 		if jsonOutput {
 			output.PrintJSON(result)

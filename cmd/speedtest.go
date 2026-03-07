@@ -8,9 +8,11 @@ package cmd
 import (
 	"context"
 	"fmt"
+	"time"
 
 	"github.com/spf13/cobra"
 
+	"github.com/ARCoder181105/netdiag/pkg/logger"
 	"github.com/ARCoder181105/netdiag/pkg/output"
 	"github.com/ARCoder181105/netdiag/pkg/probe"
 )
@@ -44,9 +46,41 @@ Examples:
 		output.PrintInfo("🌐 Running Internet Speed Test (this may take a moment)...")
 
 		result, err := prober.Probe(context.Background())
+
+		// ── Hard failure (returned as error, not Result) ──────────────────────
 		if err != nil {
+			result = probe.Result{
+				Target:    "internet",
+				ProbeType: "speedtest",
+				Success:   false,
+				Severity:  probe.SeverityError,
+				Message:   err.Error(),
+				TimeStamp: time.Now(),
+			}
+			logger.Log.Error("speedtest failed", "error", err)
+
+			if jsonOutput {
+				output.PrintJSON(result)
+				return
+			}
 			output.PrintError(err.Error())
 			return
+		}
+		// ─────────────────────────────────────────────────────────────────────
+
+		// Log outcome
+		if result.Success {
+			logger.Log.Info("speedtest completed",
+				"target", result.Target,
+				"download_mbps", result.SpeedTestData.DownloadMbps,
+				"upload_mbps", result.SpeedTestData.UploadMbps,
+				"ping_ms", result.SpeedTestData.PingMs,
+			)
+		} else {
+			logger.Log.Error("speedtest failed",
+				"target", result.Target,
+				"error", result.Message,
+			)
 		}
 
 		// JSON mode
@@ -55,7 +89,7 @@ Examples:
 			return
 		}
 
-		// Graceful failure
+		// Graceful failure (probe-level failure, not a Go error)
 		if result.SpeedTestData == nil {
 			output.PrintError(result.Message)
 			return
@@ -84,7 +118,6 @@ Examples:
 		output.PrintTable(headers, rows)
 		fmt.Println()
 
-		// Severity-based colored message
 		switch result.Severity {
 		case probe.SeverityOK:
 			output.PrintSuccess(result.Message)

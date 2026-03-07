@@ -11,9 +11,11 @@ import (
 	"strings"
 	"time"
 
+	"github.com/spf13/cobra"
+
+	"github.com/ARCoder181105/netdiag/pkg/logger"
 	"github.com/ARCoder181105/netdiag/pkg/output"
 	"github.com/ARCoder181105/netdiag/pkg/probe"
-	"github.com/spf13/cobra"
 )
 
 var (
@@ -22,7 +24,6 @@ var (
 	skipTLS bool
 )
 
-// httpCmd represents the http command
 var httpCmd = &cobra.Command{
 	Use:   "http <url>",
 	Short: "Check website status and SSL certificate",
@@ -38,7 +39,6 @@ Examples:
 	Run: func(_ *cobra.Command, args []string) {
 
 		url := args[0]
-
 		if !strings.HasPrefix(url, "http://") && !strings.HasPrefix(url, "https://") {
 			url = "https://" + url
 		}
@@ -63,12 +63,28 @@ Examples:
 			}
 		}
 
+		// ── Structured logging ────────────────────────────────────────────────
+		if result.Success && result.HTTPData != nil {
+			logger.Log.Info("http check completed",
+				"target", result.Target,
+				"status_code", result.HTTPData.StatusCode,
+				"latency_ms", result.Latency.Milliseconds(),
+				"tls_valid", result.HTTPData.TLSValid,
+				"tls_days_left", result.HTTPData.TLSDaysLeft,
+			)
+		} else {
+			logger.Log.Error("http check failed",
+				"target", result.Target,
+				"error", result.Message,
+			)
+		}
+		// ─────────────────────────────────────────────────────────────────────
+
 		if jsonOutput {
 			output.PrintJSON(result)
 			return
 		}
 
-		// True transport failure (DNS, timeout, etc.)
 		if result.HTTPData == nil {
 			output.PrintError(result.Message)
 			return
@@ -77,14 +93,8 @@ Examples:
 		data := result.HTTPData
 
 		headers := []string{
-			"URL",
-			"Method",
-			"Status",
-			"Latency",
-			"Redirects",
-			"TLS Valid",
-			"TLS Days",
-			"Content Length",
+			"URL", "Method", "Status", "Latency",
+			"Redirects", "TLS Valid", "TLS Days", "Content Length",
 		}
 
 		tlsDays := "-"
@@ -108,7 +118,6 @@ Examples:
 		fmt.Println()
 		output.PrintTable(headers, rows)
 
-		// Severity-based colored message
 		switch result.Severity {
 		case probe.SeverityOK:
 			output.PrintSuccess(result.Message)
@@ -124,7 +133,6 @@ Examples:
 
 func init() {
 	rootCmd.AddCommand(httpCmd)
-
 	httpCmd.Flags().IntVarP(&timeOut, "timeout", "t", 5, "Timeout for the request (seconds)")
 	httpCmd.Flags().StringVarP(&method, "method", "m", "GET", "HTTP method for the request")
 	httpCmd.Flags().BoolVar(&skipTLS, "skip-tls", false, "Skip TLS certificate verification")

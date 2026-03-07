@@ -10,9 +10,11 @@ import (
 	"fmt"
 	"time"
 
+	"github.com/spf13/cobra"
+
+	"github.com/ARCoder181105/netdiag/pkg/logger"
 	"github.com/ARCoder181105/netdiag/pkg/output"
 	"github.com/ARCoder181105/netdiag/pkg/probe"
-	"github.com/spf13/cobra"
 )
 
 var (
@@ -20,7 +22,6 @@ var (
 	traceTimeout time.Duration
 )
 
-// traceCmd represents the trace command
 var traceCmd = &cobra.Command{
 	Use:   "trace [host]",
 	Short: "Perform a traceroute to a destination host",
@@ -41,16 +42,31 @@ Example:
 
 		result, err := prober.Probe(context.Background())
 		if err != nil {
+			logger.Log.Error("trace failed", "target", args[0], "error", err)
 			output.PrintError(err.Error())
 			return
 		}
+
+		// ── Structured logging ────────────────────────────────────────────────
+		if result.Success && result.TraceData != nil {
+			logger.Log.Info("trace completed",
+				"target", result.Target,
+				"hops", len(result.TraceData.Hops),
+				"latency_ms", result.Latency.Milliseconds(),
+			)
+		} else {
+			logger.Log.Error("trace failed",
+				"target", result.Target,
+				"error", result.Message,
+			)
+		}
+		// ─────────────────────────────────────────────────────────────────────
 
 		if jsonOutput {
 			output.PrintJSON(result)
 			return
 		}
 
-		// Graceful failure (DNS / Permission)
 		if !result.Success || result.TraceData == nil {
 			output.PrintError(result.Message)
 			return
@@ -60,7 +76,6 @@ Example:
 		var rows [][]string
 
 		for _, hop := range result.TraceData.Hops {
-
 			rttMs := "*"
 			if !hop.Timeout {
 				rttMs = fmt.Sprintf("%.2f",
@@ -89,7 +104,6 @@ Example:
 		output.PrintTable(headers, rows)
 		fmt.Println()
 
-		// Severity-based colored message
 		switch result.Severity {
 		case probe.SeverityOK:
 			output.PrintSuccess(result.Message)
@@ -105,7 +119,6 @@ Example:
 
 func init() {
 	rootCmd.AddCommand(traceCmd)
-
 	traceCmd.Flags().IntVarP(&maxHops, "max-hops", "m", 30, "Maximum number of hops")
 	traceCmd.Flags().DurationVarP(
 		&traceTimeout,

@@ -1,3 +1,4 @@
+// Package cmd implements the CLI commands.
 package cmd
 
 import (
@@ -5,9 +6,11 @@ import (
 	"fmt"
 	"time"
 
+	"github.com/spf13/cobra"
+
+	"github.com/ARCoder181105/netdiag/pkg/logger"
 	"github.com/ARCoder181105/netdiag/pkg/output"
 	"github.com/ARCoder181105/netdiag/pkg/probe"
-	"github.com/spf13/cobra"
 )
 
 var discoverTimeout int
@@ -32,6 +35,20 @@ var discoverCmd = &cobra.Command{
 				TimeStamp: time.Now(),
 			}
 		}
+
+		// ── Structured logging ────────────────────────────────────────────────
+		if result.Success && result.DiscoverData != nil {
+			logger.Log.Info("network discovery completed",
+				"prefix", result.DiscoverData.Prefix,
+				"devices_found", len(result.DiscoverData.Devices),
+				"latency_ms", result.Latency.Milliseconds(),
+			)
+		} else {
+			logger.Log.Error("network discovery failed",
+				"error", result.Message,
+			)
+		}
+		// ─────────────────────────────────────────────────────────────────────
 
 		if jsonOutput {
 			output.PrintJSON(result)

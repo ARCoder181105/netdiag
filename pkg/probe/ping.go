@@ -28,8 +28,8 @@ func (p *PingProber) Probe(ctx context.Context) (Result, error) {
 	pinger.Count = p.Count
 	pinger.Interval = p.Interval
 	pinger.Timeout = p.Timeout
-
 	pinger.SetPrivileged(true)
+
 	err = pinger.Resolve()
 	if err != nil {
 		return Result{
@@ -42,11 +42,11 @@ func (p *PingProber) Probe(ctx context.Context) (Result, error) {
 		}, nil
 	}
 
-	// Run the pinger synchronously
 	err = pinger.RunWithContext(ctx)
 	if err != nil {
 		return Result{}, fmt.Errorf("ping failed: %w", err)
 	}
+
 	stats := pinger.Statistics()
 
 	data := PingData{
@@ -59,18 +59,45 @@ func (p *PingProber) Probe(ctx context.Context) (Result, error) {
 		AvgRTT:      stats.AvgRtt,
 		StdDevRTT:   stats.StdDevRtt,
 	}
+
+	// ── Severity logic ────────────────────────────────────────────────────────
+	// Now properly emits SeverityWarning for degraded (but not fully down) hosts.
+	// This matches what ping_test.go already asserts.
 	var (
-		success  = stats.PacketsRecv > 0
-		severity = SeverityError
-		message  = "Host unreachable"
+		success  bool
+		severity Severity
+		message  string
 	)
 
-	if success {
-		severity = SeverityOK
-		message = "Ping successful"
-	}
+	switch {
+	case stats.PacketLoss == 100:
+		// Total failure — host is unreachable
+		success = false
+		severity = SeverityError
+		message = "Host unreachable"
 
-	result := Result{
+	case stats.PacketLoss > 0 || stats.AvgRtt > 150*time.Millisecond:
+		// Partial loss OR high latency — degraded but alive
+		success = true
+		severity = SeverityWarning
+		message = fmt.Sprintf(
+			"Degraded connectivity (loss: %.1f%%, avg: %s)",
+			stats.PacketLoss,
+			stats.AvgRtt.Round(time.Millisecond),
+		)
+
+	default:
+		// All packets received, latency within threshold
+		success = true
+		severity = SeverityOK
+		message = fmt.Sprintf(
+			"Ping successful (avg: %s, loss: 0%%)",
+			stats.AvgRtt.Round(time.Millisecond),
+		)
+	}
+	// ─────────────────────────────────────────────────────────────────────────
+
+	return Result{
 		Target:    p.Host,
 		TimeStamp: time.Now(),
 		ProbeType: "ping",
@@ -79,7 +106,5 @@ func (p *PingProber) Probe(ctx context.Context) (Result, error) {
 		Severity:  severity,
 		Success:   success,
 		Latency:   stats.AvgRtt,
-	}
-
-	return result, nil
+	}, nil
 }

@@ -11,15 +11,16 @@ import (
 	"strings"
 	"time"
 
+	"github.com/spf13/cobra"
+
+	"github.com/ARCoder181105/netdiag/pkg/logger"
 	"github.com/ARCoder181105/netdiag/pkg/output"
 	"github.com/ARCoder181105/netdiag/pkg/probe"
-	"github.com/spf13/cobra"
 )
 
 var digServer string
 var digTimeout int
 
-// digCmd represents the dig command
 var digCmd = &cobra.Command{
 	Use:   "dig <domain> [type]",
 	Short: "Perform a DNS lookup (A, MX, TXT, NS, CNAME)",
@@ -54,7 +55,6 @@ Examples:
 
 		result, err := prober.Probe(context.Background())
 
-		// 1️⃣ Hard failure fallback (for JSON consistency)
 		if err != nil {
 			result = probe.Result{
 				Target:    args[0],
@@ -65,6 +65,22 @@ Examples:
 				TimeStamp: time.Now(),
 			}
 		}
+
+		// ── Structured logging ────────────────────────────────────────────────
+		if result.Success && result.DNSData != nil {
+			logger.Log.Info("dns lookup completed",
+				"target", result.Target,
+				"record_type", strings.ToUpper(recordType),
+				"record_count", len(result.DNSData.Records),
+			)
+		} else {
+			logger.Log.Error("dns lookup failed",
+				"target", result.Target,
+				"record_type", strings.ToUpper(recordType),
+				"error", result.Message,
+			)
+		}
+		// ─────────────────────────────────────────────────────────────────────
 
 		if jsonOutput {
 			output.PrintJSON(result)

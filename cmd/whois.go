@@ -2,6 +2,7 @@
 Copyright © 2026 ARCoder181105 <EMAIL ADDRESS>
 */
 
+// Package cmd implements the CLI commands.
 package cmd
 
 import (
@@ -10,11 +11,11 @@ import (
 
 	"github.com/spf13/cobra"
 
+	"github.com/ARCoder181105/netdiag/pkg/logger"
 	"github.com/ARCoder181105/netdiag/pkg/output"
 	"github.com/ARCoder181105/netdiag/pkg/probe"
 )
 
-// whoisCmd represents the whois command
 var whoisCmd = &cobra.Command{
 	Use:   "whois <domain>",
 	Short: "Retrieve domain registration information",
@@ -31,17 +32,30 @@ including the registrar, creation date, and expiration date.`,
 
 		result, err := prober.Probe(context.Background())
 		if err != nil {
+			logger.Log.Error("whois failed", "target", args[0], "error", err)
 			output.PrintError(err.Error())
 			return
 		}
 
-		// JSON Mode
+		// ── Structured logging ────────────────────────────────────────────────
+		if result.Success {
+			logger.Log.Info("whois completed",
+				"target", result.Target,
+				"latency_ms", result.Latency.Milliseconds(),
+			)
+		} else {
+			logger.Log.Error("whois failed",
+				"target", result.Target,
+				"error", result.Message,
+			)
+		}
+		// ─────────────────────────────────────────────────────────────────────
+
 		if jsonOutput {
 			output.PrintJSON(result)
 			return
 		}
 
-		// Graceful failure
 		if !result.Success || result.WhoisData == nil {
 			output.PrintError(result.Message)
 			return
