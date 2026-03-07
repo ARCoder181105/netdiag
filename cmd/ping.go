@@ -2,7 +2,6 @@
 Copyright © 2026 ARCoder181105 <EMAIL ADDRESS>
 */
 
-// Package cmd implements the CLI commands.
 package cmd
 
 import (
@@ -14,6 +13,7 @@ import (
 	"github.com/spf13/cobra"
 	"golang.org/x/sync/errgroup"
 
+	"github.com/ARCoder181105/netdiag/pkg/logger"
 	"github.com/ARCoder181105/netdiag/pkg/output"
 	"github.com/ARCoder181105/netdiag/pkg/probe"
 )
@@ -53,7 +53,6 @@ Examples:
 
 				result, err := prober.Probe(ctx)
 
-				// 1. If it hard-failed, create a fallback Result so JSON sees the error!
 				if err != nil {
 					result = probe.Result{
 						Target:    h,
@@ -65,7 +64,6 @@ Examples:
 					}
 				}
 
-				// 2. Only append to results
 				mu.Lock()
 				results = append(results, result)
 				mu.Unlock()
@@ -76,13 +74,28 @@ Examples:
 
 		_ = grp.Wait()
 
-		// 3. JSON Output Mode Check
+		// --- THIS IS THE FIX: Write to the structured logger ---
+		for _, r := range results {
+			if r.Success {
+				logger.Log.Info("Ping completed",
+					"target", r.Target,
+					"latency_ms", float64(r.Latency.Microseconds())/1000.0,
+					"loss_pct", r.PingData.PacketLoss,
+				)
+			} else {
+				logger.Log.Error("Ping failed",
+					"target", r.Target,
+					"error", r.Message,
+				)
+			}
+		}
+		// -------------------------------------------------------
+
 		if jsonOutput {
 			output.PrintJSON(results)
-			return // Exit early! No need to build the table.
+			return
 		}
 
-		// 4. Table Output Mode
 		headers := []string{
 			"Host", "IP", "Sent", "Received", "Loss",
 			"Min RTT", "Avg RTT", "Max RTT", "StdDev RTT",
@@ -123,27 +136,7 @@ Examples:
 func init() {
 	rootCmd.AddCommand(pingCmd)
 
-	pingCmd.Flags().IntVarP(
-		&count,
-		"count",
-		"c",
-		3,
-		"Number of ICMP packets to send",
-	)
-
-	pingCmd.Flags().DurationVarP(
-		&timeout,
-		"timeout",
-		"t",
-		1*time.Second,
-		"Timeout per packet (e.g., 1s, 500ms)",
-	)
-
-	pingCmd.Flags().DurationVarP(
-		&interval,
-		"interval",
-		"i",
-		1*time.Second,
-		"Time to wait between packets (e.g., 1s, 500ms)",
-	)
+	pingCmd.Flags().IntVarP(&count, "count", "c", 3, "Number of ICMP packets to send")
+	pingCmd.Flags().DurationVarP(&timeout, "timeout", "t", 1*time.Second, "Timeout per packet (e.g., 1s, 500ms)")
+	pingCmd.Flags().DurationVarP(&interval, "interval", "i", 1*time.Second, "Time to wait between packets (e.g., 1s, 500ms)")
 }
