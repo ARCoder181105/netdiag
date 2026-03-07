@@ -240,8 +240,9 @@ netdiag discover
 
 **Example:** Get the average ping latency:
 
-````bash
+```bash
 netdiag ping 1.1.1.1 --json | jq '.[0].ping_data.avg_rtt'
+```
 
 ## 📖 Commands Reference
 
@@ -260,7 +261,7 @@ Flags:
 Examples:
   netdiag ping google.com
   netdiag ping -c 10 8.8.8.8 1.1.1.1
-````
+```
 
 **Output**: Displays a table with packet loss, average/min/max latency for each host.
 
