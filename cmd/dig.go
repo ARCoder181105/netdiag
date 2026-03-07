@@ -6,108 +6,124 @@ Copyright © 2026 ARCoder181105 <EMAIL ADDRESS>
 package cmd
 
 import (
+	"context"
 	"fmt"
-	"net"
 	"strings"
-
-	"github.com/spf13/cobra"
+	"time"
 
 	"github.com/ARCoder181105/netdiag/pkg/output"
+	"github.com/ARCoder181105/netdiag/pkg/probe"
+	"github.com/spf13/cobra"
 )
+
+var digServer string
+var digTimeout int
 
 // digCmd represents the dig command
 var digCmd = &cobra.Command{
 	Use:   "dig <domain> [type]",
 	Short: "Perform a DNS lookup (A, MX, TXT, NS, CNAME)",
-	Long: `Perform a DNS lookup to find records for a domain. 
-If no type is specified, it defaults to 'A' (IP Address).
+	Long: `Perform a DNS lookup to find records for a domain.
+If no type is specified, it defaults to 'A'.
 
 Supported Record Types:
-  A      : IPv4 Address (Where is the website hosted?)
-  MX     : Mail Exchange (Who handles email for this domain?)
-  TXT    : Text Records (Verification tokens, SPF spam protection, etc.)
-  NS     : Name Servers (Which servers manage this domain's DNS?)
-  CNAME  : Canonical Name (Is this domain an alias for another domain?)
+  A      : IPv4 Address
+  MX     : Mail Exchange
+  TXT    : Text Records
+  NS     : Name Servers
+  CNAME  : Canonical Name
 
 Examples:
-  netdiag dig google.com        (Find IP)
-  netdiag dig github.com MX     (Find Mail Servers)
-  netdiag dig google.com TXT    (Read Text Records)`,
+  netdiag dig google.com
+  netdiag dig github.com MX
+  netdiag dig google.com TXT`,
 	Args: cobra.RangeArgs(1, 2),
 	Run: func(_ *cobra.Command, args []string) {
-		domain := args[0]
+
 		recordType := "A"
 		if len(args) == 2 {
 			recordType = args[1]
 		}
 
-		recordType = strings.ToUpper(recordType)
-		headers := []string{"Type", "Result"}
+		prober := &probe.DigProber{
+			Host:       args[0],
+			Server:     digServer,
+			RecordType: recordType,
+			Timeout:    time.Duration(digTimeout) * time.Second,
+		}
+
+		result, err := prober.Probe(context.Background())
+
+		// 1️⃣ Hard failure fallback (for JSON consistency)
+		if err != nil {
+			result = probe.Result{
+				Target:    args[0],
+				ProbeType: "dns",
+				Success:   false,
+				Severity:  probe.SeverityError,
+				Message:   err.Error(),
+				TimeStamp: time.Now(),
+			}
+		}
+
+		if jsonOutput {
+			output.PrintJSON(result)
+			return
+		}
+
+		output.PrintInfo(fmt.Sprintf(
+			"Querying %s records for %s...",
+			strings.ToUpper(recordType),
+			args[0],
+		))
+
+		if !result.Success || result.DNSData == nil {
+			output.PrintError(result.Message)
+			return
+		}
+
+		headers := []string{"Type", "Value"}
 		var rows [][]string
 
-		output.PrintInfo(fmt.Sprintf("Querying %s records for %s...", recordType, domain))
-
-		switch recordType {
-		case "A":
-			ips, err := net.LookupIP(domain)
-			if err != nil {
-				output.PrintError("Error looking up A records: " + err.Error())
-				return
-			}
-			for _, ip := range ips {
-				if ip.To4() != nil {
-					rows = append(rows, []string{"A", ip.String()})
-				}
-			}
-		case "MX":
-			mxs, err := net.LookupMX(domain)
-			if err != nil {
-				output.PrintError("Error looking up MX records: " + err.Error())
-				return
-			}
-			for _, mx := range mxs {
-				rows = append(rows, []string{"MX", fmt.Sprintf("%d %s", mx.Pref, mx.Host)})
-			}
-		case "TXT":
-			txts, err := net.LookupTXT(domain)
-			if err != nil {
-				output.PrintError("Error looking up TXT records: " + err.Error())
-				return
-			}
-			for _, txt := range txts {
-				rows = append(rows, []string{"TXT", txt})
-			}
-		case "NS":
-			nss, err := net.LookupNS(domain)
-			if err != nil {
-				output.PrintError("Error looking up NS records: " + err.Error())
-				return
-			}
-			for _, ns := range nss {
-				rows = append(rows, []string{"NS", ns.Host})
-			}
-		case "CNAME":
-			cname, err := net.LookupCNAME(domain)
-			if err != nil {
-				output.PrintError("Error looking up CNAME: " + err.Error())
-				return
-			}
-			rows = append(rows, []string{"CNAME", cname})
-		default:
-			output.PrintError("Unsupported record type: " + recordType)
-			output.PrintInfo("Supported types: A, MX, TXT, NS, CNAME")
-			return
+		for _, record := range result.DNSData.Records {
+			rows = append(rows, []string{
+				record.Type,
+				record.Value,
+			})
 		}
 
-		if len(rows) == 0 {
-			output.PrintWarning("No records found.")
-			return
-		}
-
+		fmt.Println()
 		output.PrintTable(headers, rows)
+
+		switch result.Severity {
+		case probe.SeverityOK:
+			output.PrintSuccess(result.Message)
+		case probe.SeverityWarning:
+			output.PrintWarning(result.Message)
+		case probe.SeverityError:
+			output.PrintError(result.Message)
+		default:
+			output.PrintInfo(result.Message)
+		}
 	},
 }
 
 func init() {
 	rootCmd.AddCommand(digCmd)
+
+	digCmd.Flags().StringVarP(
+		&digServer,
+		"server",
+		"s",
+		"",
+		"Custom DNS server to query (e.g., 8.8.8.8 or 8.8.8.8:5333)",
+	)
+
+	digCmd.Flags().IntVarP(
+		&digTimeout,
+		"timeout",
+		"t",
+		5,
+		"Timeout in seconds",
+	)
 }

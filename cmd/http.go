@@ -6,19 +6,20 @@ Copyright © 2026 ARCoder181105 <EMAIL ADDRESS>
 package cmd
 
 import (
-	"crypto/tls"
+	"context"
 	"fmt"
-	"net/http"
 	"strings"
 	"time"
 
 	"github.com/ARCoder181105/netdiag/pkg/output"
+	"github.com/ARCoder181105/netdiag/pkg/probe"
 	"github.com/spf13/cobra"
 )
 
 var (
 	timeOut int
 	method  string
+	skipTLS bool
 )
 
 // httpCmd represents the http command
@@ -26,102 +27,99 @@ var httpCmd = &cobra.Command{
 	Use:   "http <url>",
 	Short: "Check website status and SSL certificate",
 	Long: `Check the HTTP status and SSL certificate expiration of a website.
-	
+
 Examples:
-  yourapp http example.com
-  yourapp http https://example.com
-  yourapp http example.com --timeout 10`,
+  netdiag http example.com
+  netdiag http https://example.com
+  netdiag http example.com --timeout 10
+  netdiag http example.com --method POST
+  netdiag http example.com --skip-tls`,
 	Args: cobra.ExactArgs(1),
-	Run: func(_ *cobra.Command, args []string) { // Rename 'cmd' to '_'
-		host := args[0]
-		if !strings.HasPrefix(host, "http://") && !strings.HasPrefix(host, "https://") {
-			host = "https://" + host
+	Run: func(_ *cobra.Command, args []string) {
+
+		url := args[0]
+
+		if !strings.HasPrefix(url, "http://") && !strings.HasPrefix(url, "https://") {
+			url = "https://" + url
 		}
 
-		// Create client with timeout
-		client := &http.Client{
-			Timeout: time.Duration(timeOut) * time.Second,
+		prober := &probe.HTTPProber{
+			URL:           url,
+			Method:        method,
+			Timeout:       time.Duration(timeOut) * time.Second,
+			SkipTLSVerify: skipTLS,
 		}
 
-		// Make request
-		req, err := http.NewRequest(method, host, nil)
+		result, err := prober.Probe(context.Background())
+
 		if err != nil {
-			output.PrintError(fmt.Sprintf("Error creating request: %v", err))
+			result = probe.Result{
+				Target:    url,
+				ProbeType: "http",
+				Success:   false,
+				Severity:  probe.SeverityError,
+				Message:   err.Error(),
+				TimeStamp: time.Now(),
+			}
+		}
+
+		if jsonOutput {
+			output.PrintJSON(result)
 			return
 		}
 
-		start := time.Now()
-		resp, err := client.Do(req)
-		duration := time.Since(start)
-		if err != nil {
-			output.PrintError(fmt.Sprintf("Error making request: %v", err))
+		// True transport failure (DNS, timeout, etc.)
+		if result.HTTPData == nil {
+			output.PrintError(result.Message)
 			return
 		}
-		// Fix errcheck: handle close error
-		defer func() {
-			_ = resp.Body.Close()
-		}()
 
-		// Status
-		printStatusCode(resp.StatusCode)
-		// Latency
-		output.PrintInfo(fmt.Sprintf("Latency: %v", duration))
+		data := result.HTTPData
 
-		// Check if HTTPS and analyze SSL
-		if resp.TLS != nil && len(resp.TLS.PeerCertificates) > 0 {
-			analyzeSSL(resp.TLS)
-		} else {
-			output.PrintWarning("No SSL/TLS connection detected")
+		headers := []string{
+			"URL",
+			"Method",
+			"Status",
+			"Latency",
+			"Redirects",
+			"TLS Valid",
+			"TLS Days",
+			"Content Length",
+		}
+
+		tlsDays := "-"
+		if data.TLSDaysLeft > 0 {
+			tlsDays = fmt.Sprintf("%d", data.TLSDaysLeft)
+		}
+
+		rows := [][]string{
+			{
+				result.Target,
+				method,
+				fmt.Sprintf("%d", data.StatusCode),
+				result.Latency.String(),
+				fmt.Sprintf("%d", data.Redirects),
+				fmt.Sprintf("%t", data.TLSValid),
+				tlsDays,
+				fmt.Sprintf("%d", data.ContentLength),
+			},
+		}
+
+		fmt.Println()
+		output.PrintTable(headers, rows)
+
+		// Severity-based colored message
+		switch result.Severity {
+		case probe.SeverityOK:
+			output.PrintSuccess(result.Message)
+		case probe.SeverityWarning:
+			output.PrintWarning(result.Message)
+		case probe.SeverityError:
+			output.PrintError(result.Message)
+		default:
+			output.PrintInfo(result.Message)
 		}
 	},
-}
-
-func printStatusCode(statusCode int) {
-	msg := fmt.Sprintf("Status Code: %d", statusCode)
-
-	// Fix gocritic: if-else chain -> switch
-	switch {
-	case statusCode >= 200 && statusCode < 300:
-		output.PrintSuccess(msg)
-	case statusCode >= 500:
-		output.PrintError(msg)
-	case statusCode >= 400:
-		output.PrintWarning(msg)
-	default:
-		output.PrintInfo(msg)
-	}
-}
-
-func analyzeSSL(tlsState *tls.ConnectionState) {
-	cert := tlsState.PeerCertificates[0]
-
-	now := time.Now()
-	daysRemaining := int(cert.NotAfter.Sub(now).Hours() / 24)
-
-	// SSL info
-	fmt.Println("\nSSL Certificate Information:")
-	fmt.Println(strings.Repeat("-", 50))
-
-	headers := []string{"Property", "Value"}
-	rows := [][]string{
-		{"Subject", cert.Subject.CommonName},
-		{"Issuer", cert.Issuer.CommonName},
-		{"Valid From", cert.NotBefore.Format("2006-01-02 15:04:05")},
-		{"Valid Until", cert.NotAfter.Format("2006-01-02 15:04:05")},
-		{"Days Remaining", fmt.Sprintf("%d days", daysRemaining)},
-	}
-
-	output.PrintTable(headers, rows)
-
-	// Fix gocritic: if-else chain -> switch
-	switch {
-	case daysRemaining < 30:
-		output.PrintWarning(fmt.Sprintf("\n⚠️  WARNING: Certificate expires in %d days!", daysRemaining))
-	case daysRemaining < 0:
-		output.PrintError(fmt.Sprintf("\n❌ ERROR: Certificate expired %d days ago!", -daysRemaining))
-	default:
-		output.PrintSuccess(fmt.Sprintf("\n✓ Certificate is valid for %d more days", daysRemaining))
-	}
 }
 
 func init() {
@@ -129,4 +127,5 @@ func init() {
 
 	httpCmd.Flags().IntVarP(&timeOut, "timeout", "t", 5, "Timeout for the request (seconds)")
 	httpCmd.Flags().StringVarP(&method, "method", "m", "GET", "HTTP method for the request")
+	httpCmd.Flags().BoolVar(&skipTLS, "skip-tls", false, "Skip TLS certificate verification")
 }

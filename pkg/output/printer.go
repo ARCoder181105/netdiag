@@ -2,6 +2,8 @@
 package output
 
 import (
+	"encoding/json"
+	"fmt"
 	"os"
 
 	"github.com/fatih/color"
@@ -34,4 +36,14 @@ func PrintTable(headers []string, rows [][]string) {
 	table.SetHeader(headers)
 	table.AppendBulk(rows)
 	table.Render()
+}
+
+// PrintJSON marshals any data to formatted JSON and prints it to stdout.
+func PrintJSON(data any) {
+	bytes, err := json.MarshalIndent(data, "", "  ")
+	if err != nil {
+		PrintError(fmt.Sprintf("Failed to generate JSON: %v", err))
+		return
+	}
+	fmt.Println(string(bytes))
 }
