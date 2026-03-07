@@ -59,50 +59,28 @@ For each file below: copy the core logic from `cmd/`, wrap it in a struct that i
 
 ### 0.3 Create `pkg/logger/logger.go`
 
-- [ ] Create `pkg/logger/` directory
-- [ ] Wrap `log/slog` with a `New(level, format, writer)` constructor
-- [ ] Add a package-level default logger var
-- [ ] Wire `--log-file` flag in `cmd/root.go` to write to file
-- [ ] Wire `--log-format json` flag to switch to JSON handler
-- [ ] Replace all `output.PrintInfo/PrintError` calls in `cmd/` with logger calls (or keep both — logger for file, color output for terminal)
+- [x] Create `pkg/logger/` directory
+- [x] Wrap `log/slog` with a `New(level, format, writer)` constructor
+- [x] Add a package-level default logger var
+- [x] Wire `--log-file` flag in `cmd/root.go` to write to file
+- [x] Wire `--log-format json` flag to switch to JSON handler
+- [x] Replace all `output.PrintInfo/PrintError` calls in `cmd/` with logger calls (or keep both — logger for file, color output for terminal)
 
 ### 0.4 Create `pkg/config/config.go`
 
-- [ ] Add `github.com/spf13/viper` dependency: `go get github.com/spf13/viper`
-- [ ] Create `pkg/config/` directory
-- [ ] Define `Config` struct matching this shape:
-  ```go
-  type Config struct {
-      Monitor  MonitorConfig  `mapstructure:"monitor"`
-      Database DatabaseConfig `mapstructure:"database"`
-      Metrics  MetricsConfig  `mapstructure:"metrics"`
-      Scan     ScanConfig     `mapstructure:"scan"`
-  }
-  ```
-- [ ] `Load()` function that reads `~/.netdiag.yaml`, falls back to defaults if missing
-- [ ] Create a sample `~/.netdiag.yaml` and add it as `config.example.yaml` in the repo root
-- [ ] Wire Viper into `cmd/root.go` `PersistentPreRun` hook so config loads before any command runs
-
-### 0.5 Wire `--json` output mode
-
-- [x] Add `outputJSON(result probe.Result)` function to `pkg/output/printer.go`
-- [x] In each `cmd/*.go` Run function, check `jsonOutput` flag and branch:
-  ```go
-  if jsonOutput {
-      output.PrintJSON(result)
-      return
-  }
-  output.PrintTable(headers, rows)
-  ```
-- [x] Test: `./netdiag ping 1.1.1.1 --json | jq '.[0].ping_data.avg_rtt'`
+- [x] Add `github.com/spf13/viper` dependency: `go get github.com/spf13/viper`
+- [x] Create `pkg/config/` directory
+- [x] Define `Config` struct
+- [x] `Load()` function that reads `~/.netdiag.yaml`, falls back to defaults if missing
+- [x] Create a sample `~/.netdiag.yaml` and add it as `config.example.yaml` in the repo root
+- [x] Wire Viper into `cmd/root.go` `PersistentPreRun` hook so config loads before any command runs
 
 ### 0.6 Write tests
 
-- [ ] Create `pkg/probe/scan_test.go` — table-driven tests for `parsePortRange`:
-  - Single port, comma list, range, reversed range, invalid input, out-of-range ports
-- [ ] Create `pkg/probe/ping_test.go` — test `Result.Severity` logic based on packet loss and latency
-- [ ] Create `pkg/probe/http_test.go` — test TLS days remaining calculation
-- [ ] Run `go test ./...` — all pass
+- [x] Create `pkg/probe/scan_test.go` — table-driven tests for `parsePortRange`
+- [x] Create `pkg/probe/ping_test.go` — test `Result.Severity` logic based on packet loss and latency
+- [x] Create `pkg/probe/http_test.go` — test TLS days remaining calculation
+- [x] Run `go test ./...` — all pass
 
 ### Phase 0 Verification
 

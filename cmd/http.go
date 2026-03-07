@@ -68,7 +68,6 @@ Examples:
 			return
 		}
 
-
 		// True transport failure (DNS, timeout, etc.)
 		if result.HTTPData == nil {
 			output.PrintError(result.Message)

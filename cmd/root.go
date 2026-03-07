@@ -9,13 +9,18 @@ import (
 	"fmt"
 	"os"
 
+	"github.com/ARCoder181105/netdiag/pkg/config"
+	"github.com/ARCoder181105/netdiag/pkg/logger"
 	"github.com/spf13/cobra"
 )
 
 // Variables to store flag values
-var jsonOutput bool
-var logFilePath string
-var showVersion bool
+var (
+	jsonOutput  bool
+	logFilePath string
+	logFormat   string
+	showVersion bool
+)
 
 // Version info variables
 var (
@@ -37,7 +42,17 @@ var rootCmd = &cobra.Command{
 	Short: "Network diagnostics and monitoring CLI tool",
 	Long: `netdiag is a developer-friendly CLI tool used for
 network diagnostics, monitoring, and debugging.`,
-	Run: func(cmd *cobra.Command, _ []string) { // unused args -> _
+	// Wire Viper and Logger into PersistentPreRun
+	PersistentPreRunE: func(cmd *cobra.Command, args []string) error {
+		if err := logger.Init(logFilePath, logFormat); err != nil {
+			return fmt.Errorf("failed to initialize logger: %w", err)
+		}
+		if err := config.Load(); err != nil {
+			logger.Log.Warn("Failed to load config file, using defaults", "error", err)
+		}
+		return nil
+	},
+	Run: func(cmd *cobra.Command, _ []string) {
 		if showVersion {
 			fmt.Printf("netdiag version %s (%s) built on %s\n", version, commit, date)
 			return
@@ -57,10 +72,8 @@ func Execute() {
 }
 
 func init() {
-	// Global flags (PersistentFlags) apply to this command and all subcommands
 	rootCmd.PersistentFlags().BoolVarP(&jsonOutput, "json", "j", false, "Output JSON format")
 	rootCmd.PersistentFlags().StringVarP(&logFilePath, "log-file", "l", "", "Path to the log file")
-
-	// Add version flag
+	rootCmd.PersistentFlags().StringVar(&logFormat, "log-format", "text", "Log format (text or json)")
 	rootCmd.Flags().BoolVarP(&showVersion, "version", "v", false, "Show version information")
 }

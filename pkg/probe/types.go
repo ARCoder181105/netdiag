@@ -152,3 +152,10 @@ type Prober interface {
 	Probe(ctx context.Context) (Result, error)
 	Type() string
 }
+
+// IsAnomaly returns true if the probe result indicates an anomalous state.
+// This is a stub for Phase 4 (Anomaly Detection & Notifications).
+func (r *Result) IsAnomaly() bool {
+	// Simple heuristic for now: anything that isn't OK or failed entirely.
+	return r.Severity == SeverityWarning || r.Severity == SeverityError || !r.Success
+}
