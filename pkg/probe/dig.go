@@ -30,7 +30,6 @@ func (d *DigProber) Type() string {
 }
 
 func (d *DigProber) Probe(ctx context.Context) (Result, error) {
-
 	start := time.Now()
 
 	if d.Timeout > 0 {

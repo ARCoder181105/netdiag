@@ -5,9 +5,10 @@ import (
 	"fmt"
 	"os"
 
+	"github.com/spf13/cobra"
+
 	"github.com/ARCoder181105/netdiag/pkg/config"
 	"github.com/ARCoder181105/netdiag/pkg/logger"
-	"github.com/spf13/cobra"
 )
 
 // Variables to store flag values
