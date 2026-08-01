@@ -255,15 +255,29 @@ netdiag ping 1.1.1.1 --json --log-level debug | jq '.[0].ping_data.avg_rtt'
 
 ## 🔢 Exit Codes
 
-| Code | Meaning                                                |
-| ---- | ------------------------------------------------------ |
-| `0`  | The probe ran and the target is healthy                |
-| `1`  | The probe ran but the target is unhealthy or unreachable |
-| `2`  | Invalid arguments, flags, or configuration             |
-| `3`  | The probe could not run                                |
+| Code | Severity           | Meaning                                                     |
+| ---- | ------------------ | ----------------------------------------------------------- |
+| `0`  | `OK` or `Warning`  | The probe ran; the target is up                             |
+| `1`  | `Error`            | The probe ran and the target failed                         |
+| `2`  | —                  | Invalid arguments, flags, or configuration                  |
+| `3`  | —                  | The probe could not run (no privileges, unresolvable host)  |
+
+**Warnings exit `0` on purpose.** A certificate expiring in 10 days, 25% packet
+loss on a host that is still up, or a traceroute that did not reach the final
+hop are all degraded-but-alive states. They are reported in the output and in
+`severity`, but they do not fail the command — otherwise every warning would
+break a pipeline:
 
 ```bash
 netdiag http https://api.example.com && ./deploy.sh
+```
+
+To treat warnings as failures, check `severity` yourself (`0` OK, `1` Warning,
+`2` Error, `3` Unknown):
+
+```bash
+sev=$(netdiag http https://api.example.com --json | jq .severity)
+[ "$sev" -eq 0 ] || exit 1
 ```
 
 ## ⚠️ Responsible Use

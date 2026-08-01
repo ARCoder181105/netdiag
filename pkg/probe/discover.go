@@ -136,13 +136,23 @@ func (d *DiscoverProber) Probe(ctx context.Context) (Result, error) {
 	}, nil
 }
 
-// localIPv4Network returns the first non-loopback, non-link-local IPv4 address
-// on this machine along with the network it belongs to.
+// localIPv4Network returns this machine's primary IPv4 address and the network
+// it belongs to.
+//
+// It asks the kernel which source address it would use to reach the internet,
+// rather than taking the first address it finds. On a host running Docker,
+// InterfaceAddrs also reports bridges like docker0 (172.17.0.1/16), and picking
+// one of those would sweep an empty bridge network instead of the user's LAN.
 func localIPv4Network() (net.IP, *net.IPNet, error) {
 	addrs, err := net.InterfaceAddrs()
 	if err != nil {
 		return nil, nil, err
 	}
+
+	preferred := preferredIPv4()
+
+	var fallback *net.IPNet
+	var fallbackIP net.IP
 
 	for _, address := range addrs {
 		ipnet, ok := address.(*net.IPNet)
@@ -155,10 +165,39 @@ func localIPv4Network() (net.IP, *net.IPNet, error) {
 			continue
 		}
 
-		return ip, &net.IPNet{IP: ip.Mask(ipnet.Mask), Mask: ipnet.Mask}, nil
+		network := &net.IPNet{IP: ip.Mask(ipnet.Mask), Mask: ipnet.Mask}
+
+		if preferred != nil && ip.Equal(preferred) {
+			return ip, network, nil
+		}
+
+		if fallback == nil {
+			fallbackIP, fallback = ip, network
+		}
+	}
+
+	if fallback != nil {
+		return fallbackIP, fallback, nil
 	}
 
 	return nil, nil, fmt.Errorf("no active local IPv4 address found")
+}
+
+// preferredIPv4 reports the source address the kernel would use for outbound
+// traffic. The UDP "connection" is only a routing table lookup — no packets are
+// sent — so this works offline and costs nothing. Returns nil if it cannot tell.
+func preferredIPv4() net.IP {
+	conn, err := net.Dial("udp4", "8.8.8.8:80")
+	if err != nil {
+		return nil
+	}
+	defer func() { _ = conn.Close() }()
+
+	addr, ok := conn.LocalAddr().(*net.UDPAddr)
+	if !ok {
+		return nil
+	}
+	return addr.IP.To4()
 }
 
 // hostAddresses enumerates the usable host addresses of an IPv4 network,

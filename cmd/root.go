@@ -41,10 +41,13 @@ var rootCmd = &cobra.Command{
 network diagnostics, monitoring, and debugging.
 
 Exit codes:
-  0  the probe ran and the target is healthy
-  1  the probe ran but the target is unhealthy or unreachable
+  0  the probe ran and the target is up (severity OK or Warning)
+  1  the probe ran and the target failed (severity Error)
   2  invalid arguments, flags, or configuration
-  3  the probe could not run`,
+  3  the probe could not run
+
+Warnings exit 0 by design, so a degraded-but-alive target does not break a
+pipeline. Check the "severity" field in --json output to act on warnings.`,
 	SilenceUsage: true,
 	// Wire Viper and Logger into PersistentPreRun
 	PersistentPreRunE: func(_ *cobra.Command, _ []string) error {
