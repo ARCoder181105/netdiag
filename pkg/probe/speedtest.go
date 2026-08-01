@@ -53,7 +53,10 @@ func (s *SpeedTestProber) Probe(ctx context.Context) (Result, error) {
 	}
 
 	targets, err := serverList.FindServer(ids)
-	if err != nil || len(targets) == 0 {
+	if err != nil {
+		return fail("Failed to select a speedtest server: %v", err)
+	}
+	if len(targets) == 0 {
 		if s.ServerID != "" {
 			return fail("Server %s not found", s.ServerID)
 		}

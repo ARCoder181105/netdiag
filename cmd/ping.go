@@ -42,6 +42,12 @@ Examples:
 		if count < 1 {
 			failUsage("--count must be at least 1")
 		}
+		if pingWorkers < 1 {
+			// errgroup.SetLimit(0) makes every Go call block forever.
+			failUsage("--concurrency must be at least 1")
+		}
+		requirePositiveDuration("--timeout", timeout)
+		requirePositiveDuration("--interval", interval)
 
 		ctx, stop := signalContext()
 		defer stop()
@@ -98,6 +104,7 @@ Examples:
 		if jsonOutput {
 			output.PrintJSON(results)
 			exitForAll(results, failCode)
+			return
 		}
 
 		renderPing(results)

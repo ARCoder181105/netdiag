@@ -17,6 +17,12 @@ func PrintError(msg string) {
 	color.Red(msg)
 }
 
+// PrintErrorLine prints a message in red on stderr, for diagnostics that must
+// not contaminate stdout when the caller asked for --json.
+func PrintErrorLine(msg string) {
+	_, _ = color.New(color.FgRed).Fprintln(os.Stderr, msg)
+}
+
 // PrintSuccess prints a message in green.
 func PrintSuccess(msg string) {
 	color.Green(msg)

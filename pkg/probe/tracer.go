@@ -64,9 +64,10 @@ func (t *TraceProber) Probe(ctx context.Context) (Result, error) {
 	id := os.Getpid() & 0xffff
 
 	var (
-		hops     []TraceHop
-		reached  bool
-		anyReply bool
+		hops        []TraceHop
+		reached     bool
+		anyReply    bool
+		unreachable string
 	)
 
 	for ttl := 1; ttl <= t.MaxHops; ttl++ {
@@ -100,12 +101,14 @@ func (t *TraceProber) Probe(ctx context.Context) (Result, error) {
 			break
 		}
 
-		peer, isReply, ok := readTraceReply(icmpConn, id, ttl, t.Timeout)
+		reply, ok := readTraceReply(icmpConn, id, ttl, t.Timeout)
 		rtt := time.Since(startHop)
 
-		hop := TraceHop{HopNumber: ttl, RTT: rtt}
+		hop := TraceHop{HopNumber: ttl}
 
 		if !ok {
+			// Leave RTT zero: nothing was measured, and the full timeout would
+			// otherwise be reported as this hop's latency in --json output.
 			hop.Timeout = true
 			hop.IP = "*"
 			hops = append(hops, hop)
@@ -113,18 +116,26 @@ func (t *TraceProber) Probe(ctx context.Context) (Result, error) {
 		}
 
 		anyReply = true
-		hop.IP = peer
-		hop.HostName = resolveHostname(peer)
+		hop.RTT = rtt
+		hop.IP = reply.Peer
+		hop.HostName = resolveHostname(reply.Peer)
 		hops = append(hops, hop)
 
 		// Stop early if destination reached
-		if isReply && peer == destAddr.String() {
+		if reply.EchoReply && reply.Peer == destAddr.String() {
 			reached = true
+			break
+		}
+
+		// A router told us it will not forward any further. Continuing would
+		// just burn MaxHops timeouts against a path that has already ended.
+		if reply.Unreachable != "" {
+			unreachable = reply.Unreachable
 			break
 		}
 	}
 
-	severity, message := traceOutcome(reached, anyReply, len(hops))
+	severity, message := traceOutcome(reached, anyReply, len(hops), unreachable)
 
 	return Result{
 		TimeStamp: time.Now(),
@@ -133,30 +144,38 @@ func (t *TraceProber) Probe(ctx context.Context) (Result, error) {
 		TraceData: &TraceData{Hops: hops},
 		Message:   message,
 		Severity:  severity,
-		Success:   true,
+		Success:   severity != SeverityError,
 		Latency:   time.Since(startTime),
 	}, nil
 }
 
+// traceReply is one ICMP response matched to one of our probes.
+type traceReply struct {
+	Peer string
+	// EchoReply is set when the destination itself answered.
+	EchoReply bool
+	// Unreachable holds the reason when a router refused to forward further.
+	Unreachable string
+}
+
 // readTraceReply waits up to timeout for an ICMP reply belonging to this trace.
 // Packets addressed to other processes are skipped rather than attributed to
-// the current hop. It returns the responding peer, whether the reply was an
-// echo reply (destination reached) and whether anything matched at all.
-func readTraceReply(conn *icmp.PacketConn, id, seq int, timeout time.Duration) (peer string, isEchoReply, ok bool) {
+// the current hop. ok reports whether anything matched at all.
+func readTraceReply(conn *icmp.PacketConn, id, seq int, timeout time.Duration) (reply traceReply, ok bool) {
 	deadline := time.Now().Add(timeout)
 	buf := make([]byte, 1500)
 
 	for {
 		if time.Now().After(deadline) {
-			return "", false, false
+			return traceReply{}, false
 		}
 		if err := conn.SetReadDeadline(deadline); err != nil {
-			return "", false, false
+			return traceReply{}, false
 		}
 
 		n, from, err := conn.ReadFrom(buf)
 		if err != nil {
-			return "", false, false
+			return traceReply{}, false
 		}
 
 		parsed, err := icmp.ParseMessage(ipv4.ICMPTypeEchoReply.Protocol(), buf[:n])
@@ -168,17 +187,44 @@ func readTraceReply(conn *icmp.PacketConn, id, seq int, timeout time.Duration) (
 		case *icmp.Echo:
 			// Our own echo reply from the destination.
 			if parsed.Type == ipv4.ICMPTypeEchoReply && body.ID == id && body.Seq == seq {
-				return from.String(), true, true
+				return traceReply{Peer: from.String(), EchoReply: true}, true
 			}
 
 		case *icmp.TimeExceeded:
 			// An intermediate router quotes the IP header plus the first bytes
 			// of our original packet; the echo we sent is inside it.
 			if echoMatches(body.Data, id, seq) {
-				return from.String(), false, true
+				return traceReply{Peer: from.String()}, true
+			}
+
+		case *icmp.DstUnreach:
+			// Same quoting rule as TimeExceeded, but the path ends here.
+			if echoMatches(body.Data, id, seq) {
+				return traceReply{
+					Peer:        from.String(),
+					Unreachable: unreachReason(parsed.Code),
+				}, true
 			}
 		}
 		// Anything else belongs to another process. Keep reading.
+	}
+}
+
+// unreachReason names an ICMP destination-unreachable code (RFC 792).
+func unreachReason(code int) string {
+	switch code {
+	case 0:
+		return "network unreachable"
+	case 1:
+		return "host unreachable"
+	case 2:
+		return "protocol unreachable"
+	case 3:
+		return "port unreachable"
+	case 9, 10, 13:
+		return "administratively prohibited"
+	default:
+		return fmt.Sprintf("destination unreachable (code %d)", code)
 	}
 }
 
@@ -201,10 +247,12 @@ func echoMatches(quoted []byte, id, seq int) bool {
 
 // traceOutcome classifies a completed trace. Previously every trace reported
 // SeverityOK, including one where no hop ever answered.
-func traceOutcome(reached, anyReply bool, hopCount int) (Severity, string) {
+func traceOutcome(reached, anyReply bool, hopCount int, unreachable string) (Severity, string) {
 	switch {
 	case reached:
 		return SeverityOK, fmt.Sprintf("Trace complete: destination reached in %d hops", hopCount)
+	case unreachable != "":
+		return SeverityWarning, fmt.Sprintf("Trace stopped at hop %d: %s", hopCount, unreachable)
 	case !anyReply:
 		return SeverityError, "No hops responded (ICMP may be filtered on this network)"
 	default:

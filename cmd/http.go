@@ -37,14 +37,22 @@ Examples:
 			failUsage(err.Error())
 		}
 
-		if skipTLS {
+		reqTimeout := time.Duration(timeOut) * time.Second
+		requirePositiveDuration("--timeout", reqTimeout)
+
+		// Normalize once so the request and the rendered table agree.
+		method = strings.ToUpper(strings.TrimSpace(method))
+
+		// Not in JSON mode: stdout must stay parseable. JSON callers get the
+		// same information from the tls_verify_skipped field.
+		if skipTLS && !jsonOutput {
 			output.PrintWarning("TLS certificate verification is disabled (--skip-tls)")
 		}
 
 		prober := &probe.HTTPProber{
 			URL:           target,
-			Method:        strings.ToUpper(method),
-			Timeout:       time.Duration(timeOut) * time.Second,
+			Method:        method,
+			Timeout:       reqTimeout,
 			SkipTLSVerify: skipTLS,
 		}
 

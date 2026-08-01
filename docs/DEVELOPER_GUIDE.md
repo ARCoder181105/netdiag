@@ -48,7 +48,9 @@ make install
 # Run quick test
 go run . ping google.com
 
-# Pre-commit checks (fmt + vet + lint + test)
+# Pre-commit checks. Note that `make fmt` and `make lint` both rewrite source
+# files (gofumpt/gci formatting, and golangci-lint --fix), so run them before
+# staging and review the result.
 make fmt && make lint && make test
 ```
 
@@ -247,8 +249,12 @@ dlv debug -- ping google.com
 
 The version is **not** edited in source. `main.go` declares
 `version = "dev"` as a placeholder and the real value is injected at build time
-via `-ldflags -X main.version=...`, which both the Makefile and the release
-workflow do from the git tag.
+via `-ldflags -X main.version=...`.
+
+- The **Makefile** defaults to `VERSION ?= dev`, so a local `make build` reports
+  `dev` unless you override it (`make build VERSION=v0.3.0`).
+- The **release workflow** derives the value from the pushed git tag, so only
+  released binaries carry a real version.
 
 1. **Update CHANGELOG.md** — move `[Unreleased]` entries under the new version
    with today's date

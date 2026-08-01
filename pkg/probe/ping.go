@@ -61,6 +61,13 @@ func (p *PingProber) Probe(ctx context.Context) (Result, error) {
 
 	success, severity, message := pingSeverity(stats.PacketLoss, stats.AvgRtt)
 
+	// pro-bing computes PacketLoss as (sent-recv)/sent, so a run interrupted
+	// before the first packet yields NaN, which compares false against every
+	// threshold and would otherwise be classified as a healthy ping.
+	if stats.PacketsSent == 0 {
+		success, severity, message = false, SeverityError, "No packets were sent"
+	}
+
 	return Result{
 		Target:    p.Host,
 		TimeStamp: time.Now(),

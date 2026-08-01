@@ -63,7 +63,12 @@ func (w *WhoisProber) Probe(ctx context.Context) (Result, error) {
 	select {
 	case <-ctx.Done():
 		if errors.Is(ctx.Err(), context.DeadlineExceeded) {
-			return fail(fmt.Sprintf("WHOIS query timed out after %s", w.Timeout)), nil
+			if w.Timeout > 0 {
+				return fail(fmt.Sprintf("WHOIS query timed out after %s", w.Timeout)), nil
+			}
+			// The deadline came from the caller, so quoting w.Timeout would
+			// report a duration this probe never set.
+			return fail("WHOIS query timed out"), nil
 		}
 		return fail("WHOIS query canceled"), nil
 

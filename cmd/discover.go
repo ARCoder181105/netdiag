@@ -26,8 +26,11 @@ Examples:
   netdiag discover -t 1000`,
 	Args: cobra.NoArgs,
 	Run: func(_ *cobra.Command, _ []string) {
+		pingTimeout := time.Duration(discoverTimeout) * time.Millisecond
+		requirePositiveDuration("--timeout", pingTimeout)
+
 		prober := &probe.DiscoverProber{
-			Timeout: time.Duration(discoverTimeout) * time.Millisecond,
+			Timeout: pingTimeout,
 		}
 
 		runProbe(prober, "local-network", probeOpts{

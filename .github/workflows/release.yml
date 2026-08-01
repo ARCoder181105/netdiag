@@ -36,9 +36,9 @@ jobs:
         run: |
           mkdir -p dist
 
-          # One timestamp for every artifact, so a rebuild of the same tag
-          # produces identical binaries.
-          BUILD_DATE=$(date -u +%Y-%m-%dT%H:%M:%SZ)
+          # Derived from the tagged commit, not from the clock, so rebuilding
+          # the same tag produces byte-identical binaries.
+          BUILD_DATE=$(git show -s --format=%cI "${GITHUB_SHA}")
           LDFLAGS="-s -w -X main.version=${VERSION} -X main.commit=${GITHUB_SHA} -X main.date=${BUILD_DATE}"
 
           build() {

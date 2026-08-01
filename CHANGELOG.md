@@ -52,9 +52,11 @@ Correctness, consistency and production-hardening release. No new commands.
 
 ### Added
 
-- **Exit codes**: `0` healthy, `1` unhealthy or unreachable, `2` usage error,
-  `3` probe could not run. Every command previously exited `0` unconditionally,
-  which made netdiag unusable in scripts and CI.
+- **Exit codes**: `0` the probe ran and the target is healthy — degraded but
+  alive targets (severity Warning) also exit `0` so they do not break a
+  pipeline; `1` the probe ran and the target failed (severity Error); `2` usage
+  error; `3` the probe itself could not run. Every command previously exited
+  `0` unconditionally, which made netdiag unusable in scripts and CI.
 - **Signal handling**: `Ctrl+C`/`SIGTERM` cancels an in-flight probe. All
   commands previously used `context.Background()`.
 - **Input validation at the CLI boundary.** `ParsePortRange` now returns an

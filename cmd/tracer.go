@@ -38,6 +38,7 @@ Examples:
 		if maxHops < 1 || maxHops > 255 {
 			failUsage("--max-hops must be between 1 and 255")
 		}
+		requirePositiveDuration("--timeout", traceTimeout)
 
 		prober := &probe.TraceProber{
 			Host:    host,

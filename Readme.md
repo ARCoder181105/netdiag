@@ -1,9 +1,9 @@
 # netdiag 🌐
 
-<a href="https://github.com/ARCoder181105/netdiag/releases"><img src="https://img.shields.io/github/v/release/ARCoder181105/netdiag"></a>
-<a href="https://go.dev/"><img src="https://img.shields.io/badge/Go-1.24+-00ADD8?style=flat&logo=go"></a>
-<a><img src="https://img.shields.io/github/license/ARCoder181105/netdiag"></a>
-<a href="https://github.com/ARCoder181105/netdiag/actions"><img src="https://github.com/ARCoder181105/netdiag/actions/workflows/ci.yml/badge.svg"></a>
+<a href="https://github.com/ARCoder181105/netdiag/releases"><img alt="Latest release" src="https://img.shields.io/github/v/release/ARCoder181105/netdiag"></a>
+<a href="https://go.dev/"><img alt="Go 1.24+" src="https://img.shields.io/badge/Go-1.24+-00ADD8?style=flat&logo=go"></a>
+<a><img alt="License" src="https://img.shields.io/github/license/ARCoder181105/netdiag"></a>
+<a href="https://github.com/ARCoder181105/netdiag/actions"><img alt="CI status" src="https://github.com/ARCoder181105/netdiag/actions/workflows/ci.yml/badge.svg"></a>
 <a href="https://github.com/ARCoder181105/netdiag/releases"><img src="https://img.shields.io/github/downloads/ARCoder181105/netdiag/total"></a>
 
 **netdiag** is a powerful, unified network diagnostic CLI tool built in Go. It combines the functionality of multiple network utilities (`ping`, `traceroute`, `nmap`, `dig`, `whois`, `speedtest`) into a single, fast, and easy-to-use command-line interface.
@@ -243,8 +243,10 @@ These work on every command:
   -l, --log-file string      Append structured logs to a file instead of stderr
       --log-format string    Log format: text or json (default: "text")
       --log-level string     Log level: debug, info, warn, error (default: "info")
-  -v, --version              Show version information
 ```
+
+`-v, --version` is available on `netdiag` itself (`netdiag --version`), not on
+subcommands.
 
 Logs always go to stderr (or `--log-file`), never stdout, so `--json` output
 stays pipeable:

@@ -6,7 +6,7 @@
 > "Current State Audit" below reflects v0.1.x and is superseded by the README.
 > All benchmark tables here are illustrative targets, **not measurements**.
 > See [ROADMAP.md](ROADMAP.md) for current status.
-
+>
 > A complete engineering roadmap to turn `netdiag` into a production-grade, interview-ready showcase
 
 ---
@@ -1579,7 +1579,7 @@ netdiag/
 
 ### Phase 3 (SYN Scanner)
 
-> _"The connect scan was completing a full TCP handshake per port — that's three round trips and a connection teardown. The SYN scanner sends a single crafted packet and listens for SYN-ACK. I benchmarked it on localhost and quote the measured speedup. The tricky part was computing the TCP checksum manually — the kernel requires it even for raw sockets."_
+> _"The connect scan was completing a full TCP handshake per port — that's three round trips and a connection teardown. The SYN scanner sends a single crafted packet and listens for SYN-ACK. I will benchmark it on localhost and quote the measured speedup. The tricky part was computing the TCP checksum manually — the kernel requires it even for raw sockets."_
 
 ### Phase 4 (SQLite/Analytics)
 

@@ -9,6 +9,10 @@ import (
 	"time"
 )
 
+// maxDrainBytes caps how much of a response body is read purely to allow
+// connection reuse.
+const maxDrainBytes = 64 << 10
+
 type HTTPProber struct {
 	URL           string
 	Method        string
@@ -61,9 +65,10 @@ func (h *HTTPProber) Probe(ctx context.Context) (Result, error) {
 	}
 	defer func() { _ = resp.Body.Close() }()
 
-	// Drain the body so the connection can be reused and ContentLength is not
-	// reported from a half-read response.
-	_, _ = io.Copy(io.Discard, resp.Body)
+	// Partially drain the body so the connection can be returned to the pool.
+	// Bounded: this is a reachability check, and reading a multi-gigabyte body
+	// would be charged to the reported latency.
+	_, _ = io.Copy(io.Discard, io.LimitReader(resp.Body, maxDrainBytes))
 
 	latency := time.Since(startTime)
 
@@ -72,13 +77,14 @@ func (h *HTTPProber) Probe(ctx context.Context) (Result, error) {
 
 	var tlsIssuer string
 	var tlsDaysLeft int
-	var tlsValid bool
+	var tlsValid, certChecked bool
 
 	if resp.TLS != nil && len(resp.TLS.PeerCertificates) > 0 {
 		cert := resp.TLS.PeerCertificates[0]
 		tlsIssuer = cert.Issuer.CommonName
 		tlsDaysLeft = tlsDaysRemaining(cert.NotAfter, time.Now())
 		tlsValid = time.Now().Before(cert.NotAfter)
+		certChecked = true
 	}
 
 	httpData := &HTTPData{
@@ -103,7 +109,9 @@ func (h *HTTPProber) Probe(ctx context.Context) (Result, error) {
 		severity = SeverityWarning
 	}
 
-	if resp.TLS != nil && !tlsValid {
+	// Only claim expiry when a certificate was actually inspected: a resumed
+	// TLS session can report no peer certificates at all.
+	if certChecked && !tlsValid {
 		severity = SeverityError
 		success = false
 		message = "Certificate has expired"

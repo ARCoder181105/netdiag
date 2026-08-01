@@ -1,6 +1,7 @@
 package probe
 
 import (
+	"math"
 	"reflect"
 	"testing"
 	"time"
@@ -77,7 +78,9 @@ func TestPortsPerSec(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			if got := portsPerSec(tt.ports, tt.elapsed); got != tt.want {
+			// Tolerance, not equality: elapsed.Seconds() is a binary float, so
+			// 1000 ports in 100ms lands a fraction under 10000.
+			if got := portsPerSec(tt.ports, tt.elapsed); math.Abs(got-tt.want) > 1e-6 {
 				t.Errorf("portsPerSec(%d, %v) = %v, want %v", tt.ports, tt.elapsed, got, tt.want)
 			}
 		})

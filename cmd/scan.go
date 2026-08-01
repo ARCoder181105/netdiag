@@ -9,6 +9,7 @@ import (
 	"github.com/spf13/cobra"
 
 	"github.com/ARCoder181105/netdiag/pkg/config"
+	"github.com/ARCoder181105/netdiag/pkg/logger"
 	"github.com/ARCoder181105/netdiag/pkg/output"
 	"github.com/ARCoder181105/netdiag/pkg/probe"
 )
@@ -76,7 +77,16 @@ func scanTimeoutValue(cmd *cobra.Command) time.Duration {
 	if cmd.Flags().Changed("timeout") {
 		return scanTimeout
 	}
-	if d, err := time.ParseDuration(config.AppConfig.Scan.DefaultTimeout); err == nil && d > 0 {
+	configured := config.AppConfig.Scan.DefaultTimeout
+	d, err := time.ParseDuration(configured)
+	switch {
+	case err != nil:
+		logger.Log.Warn("Ignoring unparseable scan.default_timeout",
+			"value", configured, "error", err, "using", scanTimeout)
+	case d <= 0:
+		logger.Log.Warn("Ignoring non-positive scan.default_timeout",
+			"value", configured, "using", scanTimeout)
+	default:
 		return d
 	}
 	return scanTimeout

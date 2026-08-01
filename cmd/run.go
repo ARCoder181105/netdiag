@@ -2,9 +2,11 @@ package cmd
 
 import (
 	"context"
+	"fmt"
 	"os"
 	"os/signal"
 	"syscall"
+	"time"
 
 	"github.com/ARCoder181105/netdiag/pkg/logger"
 	"github.com/ARCoder181105/netdiag/pkg/output"
@@ -95,6 +97,7 @@ func reportResult(result probe.Result, render func(probe.Result), failCode int) 
 	if jsonOutput {
 		output.PrintJSON(result)
 		exitFor(result, failCode)
+		return
 	}
 
 	if render != nil {
@@ -128,7 +131,17 @@ func exitForAll(results []probe.Result, failCode int) {
 }
 
 // failUsage reports an invalid argument or flag and exits with exitUsage.
+// Diagnostics go to stderr so `--json` output on stdout stays parseable.
 func failUsage(msg string) {
-	output.PrintError(msg)
+	output.PrintErrorLine(msg)
 	os.Exit(exitUsage)
+}
+
+// requirePositiveDuration rejects a non-positive timeout flag. A zero timeout
+// means "no timeout" to net/http but "give up immediately" to the ICMP paths,
+// so it is never what the user meant.
+func requirePositiveDuration(flag string, d time.Duration) {
+	if d <= 0 {
+		failUsage(fmt.Sprintf("%s must be greater than 0", flag))
+	}
 }

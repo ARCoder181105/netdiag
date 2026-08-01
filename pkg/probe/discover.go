@@ -14,7 +14,7 @@ import (
 
 // maxSweepHosts caps how many addresses a discover run will probe. A /16 is
 // 65k hosts, which is not a "scan my LAN" operation.
-// ponytail: fixed cap; make it a --max-hosts flag if anyone needs a bigger sweep.
+// TODO: fixed cap; make it a --max-hosts flag if anyone needs a bigger sweep.
 const maxSweepHosts = 1024
 
 // discoverConcurrency bounds in-flight pings during a sweep.
@@ -113,6 +113,14 @@ func (d *DiscoverProber) Probe(ctx context.Context) (Result, error) {
 	message := fmt.Sprintf("Scan complete. Found %d devices in %s.", len(devices), ipnet)
 
 	switch {
+	case ctx.Err() != nil:
+		// Interrupted part-way: the device list is whatever answered before the
+		// cancellation, so reporting a completed scan would be a lie.
+		severity = SeverityWarning
+		message = fmt.Sprintf(
+			"Scan interrupted after finding %d devices in %s; results are incomplete.",
+			len(devices), ipnet,
+		)
 	case len(devices) == 0:
 		severity = SeverityWarning
 		message = fmt.Sprintf("No devices found in %s", ipnet)
@@ -209,8 +217,8 @@ func hostAddresses(ipnet *net.IPNet, skip net.IP, limit int) (hosts []string, tr
 		return nil, false
 	}
 
-	// /31 and /32 have no conventional host range; probe the address itself.
-	if ones >= 31 {
+	// A /32 is a single address, so probe it directly.
+	if ones == 32 {
 		if ip := ipnet.IP.To4(); ip != nil && !ip.Equal(skip) {
 			hosts = append(hosts, ip.String())
 		}
@@ -218,6 +226,21 @@ func hostAddresses(ipnet *net.IPNet, skip net.IP, limit int) (hosts []string, tr
 	}
 
 	network := binaryIPv4(ipnet.IP)
+
+	// RFC 3021: a /31 is a point-to-point link with no network or broadcast
+	// address, so both of its addresses are usable hosts.
+	if ones == 31 {
+		for addr := network; addr <= network+1; addr++ {
+			if len(hosts) >= limit {
+				return hosts, true
+			}
+			if ip := ipv4FromBinary(addr); !ip.Equal(skip) {
+				hosts = append(hosts, ip.String())
+			}
+		}
+		return hosts, false
+	}
+
 	broadcast := network | ^maskBits(ones)
 
 	for addr := network + 1; addr < broadcast; addr++ {

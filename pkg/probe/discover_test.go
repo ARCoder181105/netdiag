@@ -49,6 +49,13 @@ func TestHostAddresses(t *testing.T) {
 			wantCount: 1024, wantFirst: "10.1.0.1", wantTruncated: true,
 		},
 		{
+			// RFC 3021: a /31 has no network or broadcast address, so both
+			// addresses are usable. The old ones >= 31 branch probed only one.
+			name: "/31 has two usable hosts",
+			cidr: "10.0.0.4/31", skip: "", limit: 1024,
+			wantCount: 2, wantFirst: "10.0.0.4", wantLast: "10.0.0.5",
+		},
+		{
 			name: "/32 probes the address itself",
 			cidr: "192.168.1.7/32", skip: "", limit: 1024,
 			wantCount: 1, wantFirst: "192.168.1.7", wantLast: "192.168.1.7",

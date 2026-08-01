@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"os"
+	"strings"
 
 	"github.com/spf13/viper"
 )
@@ -39,6 +40,9 @@ func Load() error {
 	viper.SetDefault("scan.default_timeout", "1s")
 
 	viper.SetEnvPrefix("NETDIAG")
+	// Nested keys are dotted, environment variables are not: without this,
+	// NETDIAG_SCAN_DEFAULT_TIMEOUT never reaches scan.default_timeout.
+	viper.SetEnvKeyReplacer(strings.NewReplacer(".", "_"))
 	viper.AutomaticEnv()
 
 	if err := viper.ReadInConfig(); err != nil {

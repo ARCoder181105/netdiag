@@ -7,6 +7,7 @@ import (
 	"os"
 	"runtime"
 	"sync"
+	"sync/atomic"
 	"time"
 
 	probing "github.com/prometheus-community/pro-bing"
@@ -26,10 +27,19 @@ const (
 
 // icmpMode caches the socket type that worked, so a process running hundreds of
 // pings (discover sweeps a whole subnet) pays the fallback cost at most once.
+// Atomic because discover pings 50 hosts concurrently, and the goroutine that
+// discovers the working mode writes it while the others are reading.
 var (
 	icmpModeOnce sync.Once
-	icmpMode     ICMPMode
+	icmpMode     atomic.Value // ICMPMode
 )
+
+// currentICMPMode returns the cached mode, initializing it on first use.
+func currentICMPMode() ICMPMode {
+	icmpModeOnce.Do(func() { icmpMode.Store(defaultICMPMode()) })
+	mode, _ := icmpMode.Load().(ICMPMode)
+	return mode
+}
 
 // defaultICMPMode picks the mode to try first. Windows has no unprivileged ICMP
 // datagram socket at all, so raw is the only option there.
@@ -51,32 +61,37 @@ func defaultICMPMode() ICMPMode {
 // users without CAP_NET_RAW, which is the default state of a `go install`ed
 // binary on Linux.
 func RunPinger(ctx context.Context, host string, configure func(*probing.Pinger)) (*probing.Statistics, ICMPMode, error) {
-	icmpModeOnce.Do(func() { icmpMode = defaultICMPMode() })
+	mode := currentICMPMode()
 
-	stats, err := runPingerWith(ctx, host, icmpMode, configure)
+	stats, err := runPingerWith(ctx, host, mode, configure)
 	if err == nil {
-		return stats, icmpMode, nil
+		return stats, mode, nil
 	}
 
 	// Only a privilege failure is worth retrying: an unreachable host or a bad
 	// name fails identically on both socket types.
 	if ctx.Err() != nil || !isPrivilegeErr(err) {
-		return nil, icmpMode, err
+		return nil, mode, err
 	}
 
 	other := ICMPPrivileged
-	if icmpMode == ICMPPrivileged {
+	if mode == ICMPPrivileged {
 		other = ICMPUnprivileged
 	}
 
 	stats, retryErr := runPingerWith(ctx, host, other, configure)
 	if retryErr != nil {
+		if !isPrivilegeErr(retryErr) {
+			// The retry failed for an unrelated reason; the permission advice
+			// would be misleading, so report what actually went wrong.
+			return nil, mode, retryErr
+		}
 		// Neither socket type is available. Tell the user how to fix it
 		// instead of surfacing a bare "socket: permission denied".
-		return nil, icmpMode, permissionError()
+		return nil, mode, permissionError()
 	}
 
-	icmpMode = other
+	icmpMode.Store(other)
 	return stats, other, nil
 }
 

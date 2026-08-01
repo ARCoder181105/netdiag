@@ -28,6 +28,7 @@ Examples:
 		if domain == "" {
 			failUsage("no domain given")
 		}
+		requirePositiveDuration("--timeout", whoisTimeout)
 
 		prober := &probe.WhoisProber{
 			Domain:  domain,
