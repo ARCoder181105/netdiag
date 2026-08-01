@@ -72,7 +72,7 @@ jobs:
       - name: golangci-lint
         uses: golangci/golangci-lint-action@v6
         with:
-          version: v1.64.2
+          version: v1.64.8
           # No --fix here: CI runs against a throwaway checkout, so auto-fixes
           # are discarded and the job would pass on issues it silently patched.
           args: --timeout=5m
