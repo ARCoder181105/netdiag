@@ -1,18 +1,13 @@
-/*
-Copyright © 2026 ARCoder181105 <EMAIL ADDRESS>
-*/
-
 // Package cmd implements the CLI commands.
 package cmd
 
 import (
-	"context"
 	"fmt"
+	"strings"
 	"time"
 
 	"github.com/spf13/cobra"
 
-	"github.com/ARCoder181105/netdiag/pkg/logger"
 	"github.com/ARCoder181105/netdiag/pkg/output"
 	"github.com/ARCoder181105/netdiag/pkg/probe"
 )
@@ -23,108 +18,83 @@ var (
 )
 
 var traceCmd = &cobra.Command{
-	Use:   "trace [host]",
+	Use:   "trace <host>",
 	Short: "Perform a traceroute to a destination host",
 	Long: `Trace the network path to a destination host by sending ICMP packets
 with increasing TTL values. Shows each hop (router) along the path.
 
-Example:
+Requires raw socket access: run as root, or grant the binary CAP_NET_RAW
+(sudo setcap cap_net_raw+ep /usr/local/bin/netdiag).
+
+Examples:
   netdiag trace google.com
-  netdiag trace 8.8.8.8`,
+  netdiag trace 8.8.8.8 -m 20`,
 	Args: cobra.ExactArgs(1),
 	Run: func(_ *cobra.Command, args []string) {
+		host := strings.TrimSpace(args[0])
+		if host == "" {
+			failUsage("no host given")
+		}
+		if maxHops < 1 || maxHops > 255 {
+			failUsage("--max-hops must be between 1 and 255")
+		}
 
 		prober := &probe.TraceProber{
-			Host:    args[0],
+			Host:    host,
 			MaxHops: maxHops,
 			Timeout: traceTimeout,
 		}
 
-		result, err := prober.Probe(context.Background())
-		if err != nil {
-			logger.Log.Error("trace failed", "target", args[0], "error", err)
-			output.PrintError(err.Error())
-			return
-		}
-
-		// ── Structured logging ────────────────────────────────────────────────
-		if result.Success && result.TraceData != nil {
-			logger.Log.Info("trace completed",
-				"target", result.Target,
-				"hops", len(result.TraceData.Hops),
-				"latency_ms", result.Latency.Milliseconds(),
-			)
-		} else {
-			logger.Log.Error("trace failed",
-				"target", result.Target,
-				"error", result.Message,
-			)
-		}
-		// ─────────────────────────────────────────────────────────────────────
-
-		if jsonOutput {
-			output.PrintJSON(result)
-			return
-		}
-
-		if !result.Success || result.TraceData == nil {
-			output.PrintError(result.Message)
-			return
-		}
-
-		headers := []string{"Hop", "IP Address", "Hostname", "RTT (ms)"}
-		var rows [][]string
-
-		for _, hop := range result.TraceData.Hops {
-			rttMs := "*"
-			if !hop.Timeout {
-				rttMs = fmt.Sprintf("%.2f",
-					float64(hop.RTT.Microseconds())/1000.0)
-			}
-
-			ip := hop.IP
-			if hop.Timeout {
-				ip = "*"
-			}
-
-			hostname := hop.HostName
-			if hop.Timeout || hostname == "" {
-				hostname = "*"
-			}
-
-			rows = append(rows, []string{
-				fmt.Sprintf("%d", hop.HopNumber),
-				ip,
-				hostname,
-				rttMs,
-			})
-		}
-
-		fmt.Println()
-		output.PrintTable(headers, rows)
-		fmt.Println()
-
-		switch result.Severity {
-		case probe.SeverityOK:
-			output.PrintSuccess(result.Message)
-		case probe.SeverityWarning:
-			output.PrintWarning(result.Message)
-		case probe.SeverityError:
-			output.PrintError(result.Message)
-		default:
-			output.PrintInfo(result.Message)
-		}
+		runProbe(prober, host, probeOpts{
+			LogAttrs: func(r probe.Result) []any {
+				if r.TraceData == nil {
+					return nil
+				}
+				return []any{"hops", len(r.TraceData.Hops)}
+			},
+			Render: renderTrace,
+		})
 	},
+}
+
+func renderTrace(result probe.Result) {
+	data := result.TraceData
+	if data == nil || len(data.Hops) == 0 {
+		return
+	}
+
+	headers := []string{"Hop", "IP Address", "Hostname", "RTT (ms)"}
+	rows := make([][]string, 0, len(data.Hops))
+
+	for _, hop := range data.Hops {
+		rtt, ip, hostname := "*", "*", "*"
+
+		if !hop.Timeout {
+			rtt = fmt.Sprintf("%.2f", float64(hop.RTT.Microseconds())/1000.0)
+			ip = hop.IP
+			if hop.HostName != "" {
+				hostname = hop.HostName
+			}
+		}
+
+		rows = append(rows, []string{
+			fmt.Sprintf("%d", hop.HopNumber),
+			ip,
+			hostname,
+			rtt,
+		})
+	}
+
+	fmt.Println()
+	output.PrintTable(headers, rows)
+	fmt.Println()
 }
 
 func init() {
 	rootCmd.AddCommand(traceCmd)
 	traceCmd.Flags().IntVarP(&maxHops, "max-hops", "m", 30, "Maximum number of hops")
 	traceCmd.Flags().DurationVarP(
-		&traceTimeout,
-		"timeout",
-		"t",
-		2*time.Second,
-		"Timeout per hop (e.g., 2s, 500ms)",
+		&traceTimeout, "timeout", "t", 2*time.Second,
+		"Timeout per hop (e.g. 2s, 500ms)",
 	)
 }

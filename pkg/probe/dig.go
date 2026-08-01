@@ -8,6 +8,21 @@ import (
 	"time"
 )
 
+// SupportedRecordTypes lists the DNS record types dig can query. Exported so
+// the command layer can validate the argument before building a prober.
+var SupportedRecordTypes = []string{"A", "AAAA", "MX", "TXT", "NS", "CNAME"}
+
+// IsSupportedRecordType reports whether t is a queryable record type.
+func IsSupportedRecordType(t string) bool {
+	up := strings.ToUpper(strings.TrimSpace(t))
+	for _, rt := range SupportedRecordTypes {
+		if rt == up {
+			return true
+		}
+	}
+	return false
+}
+
 type DigProber struct {
 	Host       string
 	Server     string // Optional custom DNS server (e.g., "8.8.8.8")
@@ -72,6 +87,20 @@ func (d *DigProber) Probe(ctx context.Context) (Result, error) {
 			}
 		}
 
+	case "AAAA":
+		var ips []net.IPAddr
+		ips, err = resolver.LookupIPAddr(ctx, d.Host)
+		if err == nil {
+			for _, ip := range ips {
+				if ip.IP.To4() == nil && ip.IP.To16() != nil {
+					records = append(records, DNSRecord{
+						Type:  "AAAA",
+						Value: ip.IP.String(),
+					})
+				}
+			}
+		}
+
 	case "MX":
 		var mxs []*net.MX
 		mxs, err = resolver.LookupMX(ctx, d.Host)
@@ -125,7 +154,8 @@ func (d *DigProber) Probe(ctx context.Context) (Result, error) {
 			Target:    d.Host,
 			Success:   false,
 			Severity:  SeverityError,
-			Message:   "Unsupported record type",
+			Message:   fmt.Sprintf("Unsupported record type %q (want one of %s)", d.RecordType, strings.Join(SupportedRecordTypes, ", ")),
+			Latency:   time.Since(start),
 		}, nil
 	}
 
@@ -138,6 +168,7 @@ func (d *DigProber) Probe(ctx context.Context) (Result, error) {
 			Success:   false,
 			Severity:  SeverityError,
 			Message:   fmt.Sprintf("DNS lookup failed: %v", err),
+			Latency:   time.Since(start),
 		}, nil
 	}
 

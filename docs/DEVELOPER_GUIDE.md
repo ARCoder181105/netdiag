@@ -6,7 +6,7 @@ Welcome to the netdiag developer guide! This document will help you contribute t
 
 ### Prerequisites
 
-- Go 1.25 or higher
+- Go 1.24 or higher
 - Git
 - golangci-lint (optional, for linting)
 
@@ -46,10 +46,10 @@ make build
 make install
 
 # Run quick test
-make run-ping
+go run . ping google.com
 
 # Pre-commit checks (fmt + vet + lint + test)
-make pre-commit
+make fmt && make lint && make test
 ```
 
 ## Architecture Overview
@@ -245,22 +245,23 @@ dlv debug -- ping google.com
 
 ## Release Process
 
-1. **Update version** in `main.go`:
-   ```go
-   var version = "0.2.0"
+The version is **not** edited in source. `main.go` declares
+`version = "dev"` as a placeholder and the real value is injected at build time
+via `-ldflags -X main.version=...`, which both the Makefile and the release
+workflow do from the git tag.
+
+1. **Update CHANGELOG.md** — move `[Unreleased]` entries under the new version
+   with today's date
+
+2. **Commit changes**:
+   ```bash
+   git commit -am "chore: release v0.3.0"
    ```
 
-2. **Update CHANGELOG.md** with all changes
-
-3. **Commit changes**:
+3. **Create and push tag** — this is what sets the version:
    ```bash
-   git commit -am "Release v0.2.0"
-   ```
-
-4. **Create and push tag**:
-   ```bash
-   git tag v0.2.0
-   git push origin v0.2.0
+   git tag v0.3.0
+   git push origin v0.3.0
    ```
 
 5. **GitHub Actions** will automatically:

@@ -8,6 +8,10 @@ import (
 	probing "github.com/prometheus-community/pro-bing"
 )
 
+// highLatencyThreshold is the average RTT above which a reachable host is
+// still reported as degraded.
+const highLatencyThreshold = 150 * time.Millisecond
+
 type PingProber struct {
 	Host     string
 	Count    int
@@ -20,17 +24,9 @@ func (p *PingProber) Type() string {
 }
 
 func (p *PingProber) Probe(ctx context.Context) (Result, error) {
-	pinger, err := probing.NewPinger(p.Host)
-	if err != nil {
-		return Result{}, fmt.Errorf("failed to create pinger: %w", err)
-	}
+	start := time.Now()
 
-	pinger.Count = p.Count
-	pinger.Interval = p.Interval
-	pinger.Timeout = p.Timeout
-	pinger.SetPrivileged(true)
-
-	err = pinger.Resolve()
+	resolvedIP, err := ResolveHost(p.Host, p.Timeout)
 	if err != nil {
 		return Result{
 			Target:    p.Host,
@@ -39,18 +35,21 @@ func (p *PingProber) Probe(ctx context.Context) (Result, error) {
 			Success:   false,
 			Severity:  SeverityError,
 			Message:   fmt.Sprintf("DNS Resolution Failed: %v", err),
+			Latency:   time.Since(start),
 		}, nil
 	}
 
-	err = pinger.RunWithContext(ctx)
+	stats, _, err := RunPinger(ctx, p.Host, func(pinger *probing.Pinger) {
+		pinger.Count = p.Count
+		pinger.Interval = p.Interval
+		pinger.Timeout = p.Timeout
+	})
 	if err != nil {
-		return Result{}, fmt.Errorf("ping failed: %w", err)
+		return Result{}, err
 	}
 
-	stats := pinger.Statistics()
-
 	data := PingData{
-		ResolvedIP:  pinger.IPAddr().String(),
+		ResolvedIP:  resolvedIP,
 		PacketsSent: stats.PacketsSent,
 		PacketsRecv: stats.PacketsRecv,
 		PacketLoss:  stats.PacketLoss,
@@ -60,42 +59,7 @@ func (p *PingProber) Probe(ctx context.Context) (Result, error) {
 		StdDevRTT:   stats.StdDevRtt,
 	}
 
-	// ── Severity logic ────────────────────────────────────────────────────────
-	// Now properly emits SeverityWarning for degraded (but not fully down) hosts.
-	// This matches what ping_test.go already asserts.
-	var (
-		success  bool
-		severity Severity
-		message  string
-	)
-
-	switch {
-	case stats.PacketLoss == 100:
-		// Total failure — host is unreachable
-		success = false
-		severity = SeverityError
-		message = "Host unreachable"
-
-	case stats.PacketLoss > 0 || stats.AvgRtt > 150*time.Millisecond:
-		// Partial loss OR high latency — degraded but alive
-		success = true
-		severity = SeverityWarning
-		message = fmt.Sprintf(
-			"Degraded connectivity (loss: %.1f%%, avg: %s)",
-			stats.PacketLoss,
-			stats.AvgRtt.Round(time.Millisecond),
-		)
-
-	default:
-		// All packets received, latency within threshold
-		success = true
-		severity = SeverityOK
-		message = fmt.Sprintf(
-			"Ping successful (avg: %s, loss: 0%%)",
-			stats.AvgRtt.Round(time.Millisecond),
-		)
-	}
-	// ─────────────────────────────────────────────────────────────────────────
+	success, severity, message := pingSeverity(stats.PacketLoss, stats.AvgRtt)
 
 	return Result{
 		Target:    p.Host,
@@ -107,4 +71,27 @@ func (p *PingProber) Probe(ctx context.Context) (Result, error) {
 		Success:   success,
 		Latency:   stats.AvgRtt,
 	}, nil
+}
+
+// pingSeverity classifies a ping outcome. Kept as a pure function so the
+// classification can be tested without sending packets.
+func pingSeverity(loss float64, avgRTT time.Duration) (success bool, severity Severity, message string) {
+	switch {
+	case loss >= 100:
+		// Total failure — host is unreachable.
+		return false, SeverityError, "Host unreachable"
+
+	case loss > 0 || avgRTT > highLatencyThreshold:
+		// Partial loss OR high latency — degraded but alive.
+		return true, SeverityWarning, fmt.Sprintf(
+			"Degraded connectivity (loss: %.1f%%, avg: %s)",
+			loss, avgRTT.Round(time.Millisecond),
+		)
+
+	default:
+		return true, SeverityOK, fmt.Sprintf(
+			"Ping successful (avg: %s, loss: 0%%)",
+			avgRTT.Round(time.Millisecond),
+		)
+	}
 }

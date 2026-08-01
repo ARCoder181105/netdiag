@@ -1,8 +1,11 @@
-monitor:
-  interval: "5m"
-database:
-  path: "~/.netdiag.db"
-metrics:
-  enabled: false
+# netdiag configuration
+#
+# Copy to ~/.netdiag.yaml. Every key here is read by a command; CLI flags
+# always take precedence over these defaults.
+#
+# Values can also be set through the environment, e.g.
+#   NETDIAG_SCAN_DEFAULT_TIMEOUT=2s netdiag scan localhost
+
 scan:
+  # Connection timeout per port, used when --timeout is not passed.
   default_timeout: "1s"

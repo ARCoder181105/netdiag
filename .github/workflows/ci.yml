@@ -73,9 +73,9 @@ jobs:
         uses: golangci/golangci-lint-action@v6
         with:
           version: v1.64.2
-          args: --timeout=5m --fix
-          # Optional: Only needed if you use private modules
-          # github-token: ${{ secrets.GITHUB_TOKEN }}
+          # No --fix here: CI runs against a throwaway checkout, so auto-fixes
+          # are discarded and the job would pass on issues it silently patched.
+          args: --timeout=5m
 
   build:
     name: Build
@@ -93,8 +93,10 @@ jobs:
           cache: true
 
       - name: Build binary
+        env:
+          CGO_ENABLED: "0"
         run: |
-          go build -ldflags="-s -w" -o netdiag-linux-amd64 .
+          go build -trimpath -ldflags="-s -w" -o netdiag-linux-amd64 .
 
       - name: Upload artifact
         uses: actions/upload-artifact@v4

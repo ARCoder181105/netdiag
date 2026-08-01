@@ -1,7 +1,7 @@
 # netdiag 🌐
 
 <a href="https://github.com/ARCoder181105/netdiag/releases"><img src="https://img.shields.io/github/v/release/ARCoder181105/netdiag"></a>
-<a href="https://go.dev/"><img src="https://img.shields.io/badge/Go-1.25+-00ADD8?style=flat&logo=go"></a>
+<a href="https://go.dev/"><img src="https://img.shields.io/badge/Go-1.24+-00ADD8?style=flat&logo=go"></a>
 <a><img src="https://img.shields.io/github/license/ARCoder181105/netdiag"></a>
 <a href="https://github.com/ARCoder181105/netdiag/actions"><img src="https://github.com/ARCoder181105/netdiag/actions/workflows/ci.yml/badge.svg"></a>
 <a href="https://github.com/ARCoder181105/netdiag/releases"><img src="https://img.shields.io/github/downloads/ARCoder181105/netdiag/total"></a>
@@ -15,7 +15,7 @@
 - **🗺️ Traceroute** - Discover the network path to any destination
 - **🔍 Port Scanner** - Scan for open TCP ports with high-performance concurrency
 - **🌐 HTTP Health Check** - Verify website status and SSL certificate validity
-- **📋 DNS Lookup** - Query DNS records (A, MX, TXT, NS, CNAME)
+- **📋 DNS Lookup** - Query DNS records (A, AAAA, MX, TXT, NS, CNAME)
 - **📖 WHOIS Lookup** - Retrieve domain registration information
 - **🔎 Network Discovery** - Scan your local network for active devices
 
@@ -24,7 +24,11 @@
 - [Installation](#-installation)
 - [Uninstallation](#-uninstallation)
 - [Quick Start](#-quick-start)
+- [Global Flags](#-global-flags)
+- [Exit Codes](#-exit-codes)
+- [Responsible Use](#-responsible-use)
 - [Commands Reference](#-commands-reference)
+- [Configuration](#-configuration)
 - [Architecture & Concepts](#-architecture--concepts)
 - [Permissions](#-permissions)
 - [Contributing](#-contributing)
@@ -52,13 +56,6 @@ irm https://raw.githubusercontent.com/ARCoder181105/netdiag/main/install.ps1 | i
 
 <details>
 <summary><b>📦 Package Managers</b></summary>
-
-#### Homebrew (macOS/Linux)
-
-```bash
-brew tap ARCoder181105/netdiag
-brew install netdiag
-```
 
 #### Go Install
 
@@ -105,7 +102,7 @@ sudo setcap cap_net_raw+ep /usr/local/bin/netdiag
 
 **Prerequisites:**
 
-- Go 1.25 or higher
+- Go 1.24 or higher
 - Git
 
 ```bash
@@ -182,13 +179,6 @@ make uninstall
 sudo rm /usr/local/bin/netdiag  # Linux/macOS
 ```
 
-#### If installed via Homebrew:
-
-```bash
-brew uninstall netdiag
-brew untap ARCoder181105/netdiag
-```
-
 #### If installed via Go:
 
 ```bash
@@ -244,6 +234,45 @@ netdiag discover
 netdiag ping 1.1.1.1 --json | jq '.[0].ping_data.avg_rtt'
 ```
 
+## 🌍 Global Flags
+
+These work on every command:
+
+```
+  -j, --json                 Output machine-readable JSON instead of tables
+  -l, --log-file string      Append structured logs to a file instead of stderr
+      --log-format string    Log format: text or json (default: "text")
+      --log-level string     Log level: debug, info, warn, error (default: "info")
+  -v, --version              Show version information
+```
+
+Logs always go to stderr (or `--log-file`), never stdout, so `--json` output
+stays pipeable:
+
+```bash
+netdiag ping 1.1.1.1 --json --log-level debug | jq '.[0].ping_data.avg_rtt'
+```
+
+## 🔢 Exit Codes
+
+| Code | Meaning                                                |
+| ---- | ------------------------------------------------------ |
+| `0`  | The probe ran and the target is healthy                |
+| `1`  | The probe ran but the target is unhealthy or unreachable |
+| `2`  | Invalid arguments, flags, or configuration             |
+| `3`  | The probe could not run                                |
+
+```bash
+netdiag http https://api.example.com && ./deploy.sh
+```
+
+## ⚠️ Responsible Use
+
+`netdiag scan` and `netdiag discover` send unsolicited traffic to hosts. Scanning
+or sweeping systems you do not own, or do not have explicit written permission to
+test, is unlawful in many jurisdictions. Use these commands on your own
+infrastructure or with documented authorization.
+
 ## 📖 Commands Reference
 
 ### `netdiag ping`
@@ -254,13 +283,15 @@ Send ICMP echo requests to one or more hosts concurrently.
 netdiag ping <host> [more hosts...]
 
 Flags:
-  -c, --count int       Number of ICMP packets to send (default: 3)
-  -t, --timeout int     Timeout per packet in seconds (default: 1)
-  -i, --interval int    Time to wait between packets in seconds (default: 1)
+  -c, --count int          Number of ICMP packets to send (default: 3)
+  -t, --timeout duration   Timeout per host, e.g. 1s, 500ms (default: 1s)
+  -i, --interval duration  Time to wait between packets, e.g. 1s (default: 1s)
+      --concurrency int    Number of hosts to ping concurrently (default: 20)
 
 Examples:
   netdiag ping google.com
   netdiag ping -c 10 8.8.8.8 1.1.1.1
+  netdiag ping -t 2s -i 500ms github.com
 ```
 
 **Output**: Displays a table with packet loss, average/min/max latency for each host.
@@ -296,7 +327,8 @@ Perform a traceroute to discover the network path to a destination.
 netdiag trace <host>
 
 Flags:
-  -m, --max-hops int    Maximum number of hops (default: 30)
+  -m, --max-hops int       Maximum number of hops (default: 30)
+  -t, --timeout duration   Timeout per hop, e.g. 2s, 500ms (default: 2s)
 
 Examples:
   netdiag trace google.com
@@ -315,8 +347,9 @@ Scan a target host for open TCP ports using a high-performance worker pool.
 netdiag scan <host>
 
 Flags:
-  -p, --ports string    Port range to scan (default: "1-1024")
-  -t, --timeout int     Timeout in seconds (default: 1)
+  -p, --ports string        Ports to scan: list, range, or both (default: "1-1024")
+  -t, --timeout duration    Connection timeout per port (default: 1s)
+  -c, --concurrency int     Ports to probe concurrently (default: 100)
 
 Examples:
   netdiag scan localhost
@@ -338,6 +371,7 @@ netdiag http <url>
 Flags:
   -t, --timeout int     Timeout for the request in seconds (default: 5)
   -m, --method string   HTTP method (default: "GET")
+      --skip-tls        Skip TLS certificate verification (insecure)
 
 Examples:
   netdiag http example.com
@@ -360,13 +394,19 @@ Perform DNS lookups for various record types.
 ```bash
 netdiag dig <domain> [type]
 
-Supported Types: A, MX, TXT, NS, CNAME
+Supported Types: A, AAAA, MX, TXT, NS, CNAME
+
+Flags:
+  -s, --server string      Custom DNS server (e.g. 8.8.8.8 or 8.8.8.8:5353)
+  -t, --timeout duration   Query timeout (default: 5s)
 
 Examples:
   netdiag dig google.com          # Default: A records (IPv4)
+  netdiag dig google.com AAAA     # IPv6 addresses
   netdiag dig github.com MX       # Mail servers
   netdiag dig example.com TXT     # Text records
   netdiag dig google.com NS       # Name servers
+  netdiag dig google.com --server 1.1.1.1
 ```
 
 **Output**: Table of DNS records matching the specified type.
@@ -379,6 +419,9 @@ Retrieve domain registration and ownership information.
 
 ```bash
 netdiag whois <domain>
+
+Flags:
+  -t, --timeout duration   Query timeout (default: 10s)
 
 Examples:
   netdiag whois google.com
@@ -406,172 +449,166 @@ Examples:
 
 **Output**:
 
-- Auto-detects your local IP range (e.g., 192.168.1.0/24)
-- Scans all 254 addresses
+- Auto-detects your local IPv4 network, including its netmask
+- Sweeps every usable host address in that network (capped at 1024 addresses)
 - Displays table of discovered devices with IP, hostname, and latency
 
 ---
 
-## 🏗️ Architecture & Concepts
+## ⚙️ Configuration
 
-### Design Philosophy
+netdiag reads `~/.netdiag.yaml` if present. CLI flags always override it.
 
-**netdiag** is architected as an **extensible platform**, not just a collection of scripts. The modular design allows for easy addition of new diagnostic features without refactoring core functionality.
-
-### Key Technologies & Libraries
-
-#### 1. **CLI Framework: Cobra**
-
-- **Library**: [`github.com/spf13/cobra`](https://github.com/spf13/cobra)
-- **Why**: Industry-standard for complex CLI apps (used by Kubernetes, Hugo, GitHub CLI)
-- **Benefits**:
-  - Powerful nested subcommand support
-  - Robust flag parsing
-  - Auto-generated help text
-  - Easy integration with configuration files via Viper
-
-#### 2. **Concurrency Management: errgroup**
-
-- **Library**: [`golang.org/x/sync/errgroup`](https://pkg.go.dev/golang.org/x/sync/errgroup)
-- **Why**: Professional error handling for concurrent operations
-- **Benefits**:
-  - Automatic error propagation from goroutines
-  - Context cancellation on first error
-  - Built-in concurrency limiting with `SetLimit()`
-  - Prevents resource exhaustion
-
-**Example Use Case**: When pinging 100 hosts, errgroup limits concurrent operations to 20, preventing system overload while efficiently managing errors.
-
-#### 3. **ICMP Operations: pro-bing**
-
-- **Library**: [`github.com/prometheus-community/pro-bing`](https://github.com/prometheus-community/pro-bing)
-- **Why**: Production-grade ICMP library from Prometheus community
-- **Features**:
-  - Detailed statistics (min/max/avg RTT, packet loss, jitter)
-  - Privileged and unprivileged mode support
-  - Callback-based result handling
-
-#### 4. **Output Formatting**
-
-**Table Rendering**: [`github.com/olekukonko/tablewriter`](https://github.com/olekukonko/tablewriter)
-
-- Transforms raw data into clean, aligned ASCII tables
-- Automatic column width calculation
-- Border customization
-
-**Semantic Colors**: [`github.com/fatih/color`](https://github.com/fatih/color)
-
-- Cross-platform color support
-- Semantic color scheme:
-  - 🟢 **Green**: Success (host up, port open, SSL valid)
-  - 🔴 **Red**: Failure (host down, connection refused, SSL expired)
-  - 🟡 **Yellow**: Warning (high latency, SSL expiring soon)
-  - 🔵 **Cyan**: Informational (headers, progress updates)
-
-#### 5. **Network Operations**
-
-- **Port Scanning**: Go's `net.DialTimeout()` with semaphore-based concurrency control
-- **Traceroute**: Raw ICMP sockets via `golang.org/x/net/icmp` with TTL manipulation
-- **DNS Queries**: Go's standard `net` package for DNS lookups
-- **WHOIS**: [`github.com/likexian/whois`](https://github.com/likexian/whois-go)
-- **Speed Test**: [`github.com/showwin/speedtest-go`](https://github.com/showwin/speedtest-go)
-
-### Concurrency Patterns
-
-#### Worker Pool with Semaphore (Port Scanner)
-
-```go
-semaphore := make(chan struct{}, 100) // Limit to 100 concurrent scans
-
-for _, port := range ports {
-    wg.Add(1)
-    go func(p int) {
-        defer wg.Done()
-
-        semaphore <- struct{}{}        // Acquire slot (blocks if full)
-        defer func() { <-semaphore }() // Release slot
-
-        // Perform scan
-        conn, err := net.DialTimeout("tcp", address, timeout)
-        if err == nil {
-            conn.Close()
-            results <- p // Port is open
-        }
-    }(port)
-}
+```yaml
+scan:
+  # Connection timeout per port, used when --timeout is not passed.
+  default_timeout: "1s"
 ```
 
-**Benefits**: Prevents "too many open files" errors while maximizing throughput.
-
-#### errgroup Pattern (Concurrent Ping)
-
-```go
-group, ctx := errgroup.WithContext(context.Background())
-group.SetLimit(20) // Max 20 concurrent pings
-
-for _, host := range hosts {
-    h := host
-    group.Go(func() error {
-        if ctx.Err() != nil {
-            return ctx.Err() // Stop if another goroutine failed
-        }
-
-        pinger, err := probing.NewPinger(h)
-        if err != nil {
-            return err // Error propagates, cancels context
-        }
-
-        return pinger.Run()
-    })
-}
-
-if err := group.Wait(); err != nil {
-    // Handle first error from any goroutine
-}
-```
-
-**Benefits**: Automatic error handling, context cancellation, and controlled concurrency.
-
-### Raw Socket Operations & Privileges
-
-Many network diagnostic operations (ping, traceroute) require **raw socket access** to craft custom ICMP packets. This is a privileged operation for security reasons.
-
-#### The Problem
-
-- Raw sockets allow packet crafting, which could be used maliciously
-- Operating systems restrict this capability to root/Administrator
-
-#### The Solution: Linux Capabilities
-
-Instead of running the entire program as root (`sudo netdiag`), grant only the specific capability needed:
+Every key can also be set via the environment with a `NETDIAG_` prefix:
 
 ```bash
-sudo setcap cap_net_raw+ep /usr/local/bin/netdiag
+NETDIAG_SCAN_DEFAULT_TIMEOUT=2s netdiag scan localhost
 ```
 
-This grants `CAP_NET_RAW` (raw socket creation) to the binary while keeping everything else unprivileged—following the **principle of least privilege**.
+Keys are added to the config schema only once a command actually reads them —
+see [config.example.yaml](config.example.yaml) for the current set.
 
----
+## 🏗️ Architecture & Concepts
+
+### Layering
+
+netdiag separates *what to measure* from *how to display it*. Commands are thin
+Cobra wrappers; all network logic lives in `pkg/probe/`.
+
+```
+main.go
+  └── cmd/                 Cobra commands: flags, argument validation, rendering
+        ├── root.go        global flags, logger + config wiring
+        └── run.go         runProbe(): the shared execution path
+              │
+              ▼
+      pkg/probe/           all network logic; no printing, no os.Exit
+        ├── types.go       Result, Severity, the Prober interface
+        ├── ping.go        PingProber
+        ├── scan.go        ConnectScanner
+        ├── tracer.go      TraceProber
+        ├── http.go        HTTPProber
+        ├── dig.go         DigProber
+        ├── discover.go    DiscoverProber
+        ├── whois.go       WhoisProber
+        ├── speedtest.go   SpeedTestProber
+        └── icmp.go        shared privileged/unprivileged ICMP handling
+              │
+              ▼
+      pkg/output/          color, tables, JSON
+      pkg/logger/          log/slog wrapper (stderr by default)
+      pkg/config/          Viper loader for ~/.netdiag.yaml
+```
+
+### The `Prober` interface
+
+Every probe implements the same two methods:
+
+```go
+type Prober interface {
+    Probe(ctx context.Context) (Result, error)
+    Type() string
+}
+```
+
+This is what lets one shared runner drive every command.
+
+### The `Result` type
+
+Probes never print. They return a typed `Result` carrying an outcome plus one
+probe-specific payload:
+
+```go
+type Result struct {
+    TimeStamp time.Time
+    ProbeType string
+    Target    string
+
+    PingData  *PingData   // only one payload is non-nil
+    ScanData  *ScanData
+    HTTPData  *HTTPData
+    // ... DNSData, TraceData, DiscoverData, SpeedTestData, WhoisData
+
+    Message  string
+    Severity Severity     // OK | Warning | Error | Unknown
+    Success  bool
+    Latency  time.Duration
+}
+```
+
+One type means `--json`, table rendering, exit codes, and structured logging are
+all implemented once rather than per command.
+
+### The shared runner
+
+`cmd/run.go` owns everything that must behave identically across commands:
+
+| Concern             | Behaviour                                              |
+| ------------------- | ------------------------------------------------------ |
+| Cancellation        | `signal.NotifyContext` — Ctrl+C stops a scan mid-flight |
+| Error normalization | A hard error becomes a `Result` via `probe.ErrorResult` |
+| Logging             | One structured line per probe, always to stderr        |
+| `--json`            | Short-circuits rendering, prints the raw `Result`      |
+| Color              | `output.PrintBySeverity` maps severity to color       |
+| Exit code           | Derived from `Success` and `Severity`                  |
+
+### Concurrency
+
+- **Port scanner** — a semaphore-bounded worker pool (`--concurrency`, default
+  100), with every dial carrying the cancellable context.
+- **Ping** — `errgroup` with `SetLimit`, so pinging 100 hosts does not open 100
+  sockets at once.
+- **Discover** — bounded sweep of the detected network, capped at 1024
+  addresses so a `/16` interface cannot launch a 65k-host scan.
+
+### ICMP privileges
+
+Raw ICMP sockets need `CAP_NET_RAW` or root. Many systems also offer
+*unprivileged* ICMP datagram sockets, which need neither.
+
+`pkg/probe/icmp.go` tries the mode most likely to work on the current platform,
+transparently retries with the other on a permission error, and caches the
+result for the rest of the process. If neither works, the error explains exactly
+how to fix it rather than reporting a bare `socket: permission denied`.
 
 ## 🔐 Permissions
 
-### Linux/macOS
+Only the ICMP-based commands (`ping`, `trace`, `discover`) need special
+permissions. `scan`, `http`, `dig`, `whois`, and `speedtest` never do.
 
-After installation, grant ICMP capabilities:
+### Linux
+
+`ping` and `discover` first try unprivileged ICMP datagram sockets, so on many
+systems they work with no setup at all. If your kernel does not allow them,
+pick one of:
 
 ```bash
+# Preferred: grant only the capability this binary needs
 sudo setcap cap_net_raw+ep /usr/local/bin/netdiag
+
+# Or: allow unprivileged ICMP for all users
+sudo sysctl -w net.ipv4.ping_group_range="0 2147483647"
 ```
 
-Alternatively, run with sudo (not recommended):
+`make install` applies the `setcap` step for you. netdiag prints whichever of
+these applies if it hits a permission error.
 
-```bash
-sudo netdiag ping google.com
-```
+`trace` always needs raw sockets, so it requires `cap_net_raw` or `sudo`.
+
+### macOS
+
+Unprivileged ICMP works out of the box for `ping` and `discover`. `trace`
+requires `sudo`.
 
 ### Windows
 
-Run Command Prompt or PowerShell as Administrator for full functionality.
+Run Command Prompt or PowerShell as Administrator for the ICMP commands.
 
 ---
 
@@ -582,9 +619,10 @@ Contributions are welcome! Here are some ideas for enhancements:
 - [ ] MTR (My Traceroute) implementation for continuous latency monitoring
 - [ ] IP geolocation lookup
 - [ ] mDNS/Zeroconf service discovery
-- [ ] JSON output mode (`--json` flag)
-- [ ] Configuration file support
-- [ ] IPv6 support for all commands
+- [ ] Full IPv6 support across all commands (`dig AAAA` is done)
+- [ ] Packet capture / PCAP export
+
+Larger planned work is tracked in [ROADMAP.md](ROADMAP.md).
 
 ### Development Setup
 

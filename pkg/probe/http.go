@@ -4,6 +4,7 @@ import (
 	"context"
 	"crypto/tls"
 	"fmt"
+	"io"
 	"net/http"
 	"time"
 )
@@ -55,9 +56,14 @@ func (h *HTTPProber) Probe(ctx context.Context) (Result, error) {
 			Message:   err.Error(),
 			Severity:  SeverityError,
 			Success:   false,
+			Latency:   time.Since(startTime),
 		}, nil
 	}
-	defer resp.Body.Close()
+	defer func() { _ = resp.Body.Close() }()
+
+	// Drain the body so the connection can be reused and ContentLength is not
+	// reported from a half-read response.
+	_, _ = io.Copy(io.Discard, resp.Body)
 
 	latency := time.Since(startTime)
 
@@ -71,18 +77,19 @@ func (h *HTTPProber) Probe(ctx context.Context) (Result, error) {
 	if resp.TLS != nil && len(resp.TLS.PeerCertificates) > 0 {
 		cert := resp.TLS.PeerCertificates[0]
 		tlsIssuer = cert.Issuer.CommonName
-		tlsDaysLeft = int(time.Until(cert.NotAfter).Hours() / 24)
+		tlsDaysLeft = tlsDaysRemaining(cert.NotAfter, time.Now())
 		tlsValid = time.Now().Before(cert.NotAfter)
 	}
 
 	httpData := &HTTPData{
-		TLSIssuer:     tlsIssuer,
-		Latency:       latency,
-		ContentLength: contentLength,
-		StatusCode:    statusCode,
-		TLSDaysLeft:   tlsDaysLeft,
-		Redirects:     redirects,
-		TLSValid:      tlsValid,
+		TLSIssuer:        tlsIssuer,
+		Latency:          latency,
+		ContentLength:    contentLength,
+		StatusCode:       statusCode,
+		TLSDaysLeft:      tlsDaysLeft,
+		Redirects:        redirects,
+		TLSValid:         tlsValid,
+		TLSVerifySkipped: h.SkipTLSVerify,
 	}
 
 	severity := SeverityOK
@@ -96,7 +103,11 @@ func (h *HTTPProber) Probe(ctx context.Context) (Result, error) {
 		severity = SeverityWarning
 	}
 
-	if tlsDaysLeft > 0 && tlsDaysLeft < 14 {
+	if resp.TLS != nil && !tlsValid {
+		severity = SeverityError
+		success = false
+		message = "Certificate has expired"
+	} else if tlsDaysLeft > 0 && tlsDaysLeft < 14 {
 		severity = SeverityWarning
 		message = fmt.Sprintf("Certificate expires in %d days", tlsDaysLeft)
 	}
@@ -111,4 +122,11 @@ func (h *HTTPProber) Probe(ctx context.Context) (Result, error) {
 		Success:   success,
 		Latency:   latency,
 	}, nil
+}
+
+// tlsDaysRemaining is whole days until notAfter, rounded toward zero. Flooring
+// is the safe direction for an expiry warning: a cert with 13.9 days left
+// reports 13, not 14, so it still trips the "expires soon" threshold.
+func tlsDaysRemaining(notAfter, now time.Time) int {
+	return int(notAfter.Sub(now).Hours() / 24)
 }

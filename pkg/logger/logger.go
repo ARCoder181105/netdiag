@@ -39,20 +39,21 @@ func New(level string, format string, writer io.Writer) *slog.Logger {
 	return slog.New(handler)
 }
 
-// Init initializes the global package-level logger.
-func Init(logFilePath string, format string) error {
-	var writer io.Writer = os.Stderr // Default to stderr
+// Init initializes the global package-level logger. Logs go to stderr by
+// default so stdout stays clean for `--json | jq`.
+func Init(logFilePath, format, level string) error {
+	var writer io.Writer = os.Stderr
 
 	// Wire --log-file flag to write to file
 	if logFilePath != "" {
-		file, err := os.OpenFile(logFilePath, os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0644)
+		file, err := os.OpenFile(logFilePath, os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0o600)
 		if err != nil {
 			return err
 		}
 		writer = file
 	}
 
-	Log = New("info", format, writer)
+	Log = New(level, format, writer)
 	slog.SetDefault(Log)
 	return nil
 }

@@ -1,6 +1,4 @@
-/*
-Copyright © 2026 NAME HERE <EMAIL ADDRESS>
-*/
+// Command netdiag is a unified network diagnostics CLI.
 package main
 
 import "github.com/ARCoder181105/netdiag/cmd"
