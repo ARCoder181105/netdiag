@@ -20,6 +20,8 @@ func TestParsePortRange(t *testing.T) {
 		{"Mixed", "80,443,8080-8081", []int{80, 443, 8080, 8081}},
 		{"Whitespace is tolerated", " 80 , 443 ", []int{80, 443}},
 		{"Boundaries", "1,65535", []int{1, 65535}},
+		{"Duplicate single ports are deduplicated", "80,80", []int{80}},
+		{"Overlapping ranges are deduplicated", "80-82,81-83", []int{80, 81, 82, 83}},
 	}
 
 	for _, tt := range tests {

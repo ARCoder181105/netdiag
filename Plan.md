@@ -30,7 +30,7 @@ This is the most important file in the entire refactor. Everything downstream de
 
 - [x] Create `pkg/probe/` directory
 - [x] Define `Severity` type with constants `SeverityOK`, `SeverityWarning`, `SeverityError`, `SeverityUnknown`
-- [x] Define `Result` struct with fields: `ProbeType`, `Target`, `Timestamp`, `Severity`, `Success`, `Message`, `Latency`, and optional payload pointers
+- [x] Define `Result` struct with fields: `ProbeType`, `Target`, `TimeStamp`, `Severity`, `Success`, `Message`, `Latency`, and optional payload pointers
 - [x] Define payload structs: `PingData`, `ScanData`, `TraceData`, `HTTPData`, `DNSData`
 - [x] Define `Prober` interface:
   ```go

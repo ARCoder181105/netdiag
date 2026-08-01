@@ -238,7 +238,7 @@ netdiag ping 1.1.1.1 --json | jq '.[0].ping_data.avg_rtt'
 
 These work on every command:
 
-```
+```text
   -j, --json                 Output machine-readable JSON instead of tables
   -l, --log-file string      Append structured logs to a file instead of stderr
       --log-format string    Log format: text or json (default: "text")
@@ -282,7 +282,7 @@ sev=$(netdiag http https://api.example.com --json | jq .severity)
 [ "$sev" -eq 0 ] || exit 1
 ```
 
-## ⚠️ Responsible Use
+## ⚠ Responsible Use
 
 `netdiag scan` and `netdiag discover` send unsolicited traffic to hosts. Scanning
 or sweeping systems you do not own, or do not have explicit written permission to
@@ -471,7 +471,7 @@ Examples:
 
 ---
 
-## ⚙️ Configuration
+## ⚙ Configuration
 
 netdiag reads `~/.netdiag.yaml` if present. CLI flags always override it.
 
@@ -497,7 +497,7 @@ see [config.example.yaml](config.example.yaml) for the current set.
 netdiag separates *what to measure* from *how to display it*. Commands are thin
 Cobra wrappers; all network logic lives in `pkg/probe/`.
 
-```
+```text
 main.go
   └── cmd/                 Cobra commands: flags, argument validation, rendering
         ├── root.go        global flags, logger + config wiring

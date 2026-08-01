@@ -3,7 +3,6 @@ package probe
 import (
 	"context"
 	"errors"
-	"fmt"
 	"os"
 	"runtime"
 	"sync"
@@ -99,17 +98,17 @@ func RunPinger(ctx context.Context, host string, configure func(*probing.Pinger)
 func permissionError() error {
 	switch runtime.GOOS {
 	case "linux":
-		return fmt.Errorf(
+		return errors.New(
 			"ICMP is not permitted for this user. Either grant the binary the capability:\n" +
 				"    sudo setcap cap_net_raw+ep $(command -v netdiag)\n" +
 				"or allow unprivileged ICMP for your group:\n" +
 				"    sudo sysctl -w net.ipv4.ping_group_range=\"0 2147483647\"")
 	case "darwin":
-		return fmt.Errorf("ICMP is not permitted for this user. Try running with sudo")
+		return errors.New("ICMP is not permitted for this user. Try running with sudo")
 	case "windows":
-		return fmt.Errorf("ICMP is not permitted. Run the terminal as Administrator")
+		return errors.New("ICMP is not permitted. Run the terminal as Administrator")
 	default:
-		return fmt.Errorf("ICMP is not permitted for this user")
+		return errors.New("ICMP is not permitted for this user")
 	}
 }
 
@@ -141,6 +140,7 @@ func ResolveHost(host string, timeout time.Duration) (string, error) {
 		return "", err
 	}
 	pinger.Timeout = timeout
+	pinger.ResolveTimeout = timeout
 	if err := pinger.Resolve(); err != nil {
 		return "", err
 	}

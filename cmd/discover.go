@@ -18,8 +18,11 @@ var discoverCmd = &cobra.Command{
 	Short: "Scan local network for devices",
 	Long: `Sweep the local IPv4 network for reachable devices.
 
-The network is derived from the first active non-loopback interface, including
-its netmask, so non-/24 networks are handled correctly.
+The network is derived from the kernel-selected outbound source address (the
+interface that would be used to reach the internet), including its netmask, so
+non-/24 networks are handled correctly. If that address cannot be determined,
+the first eligible non-loopback interface is used as a fallback. The sweep is
+capped at 1024 addresses.
 
 Examples:
   netdiag discover

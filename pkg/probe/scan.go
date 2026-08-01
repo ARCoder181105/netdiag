@@ -112,6 +112,7 @@ func ParsePortRange(portStr string) ([]int, error) {
 	}
 
 	var result []int
+	seen := make(map[int]bool)
 
 	for _, part := range strings.Split(portStr, ",") {
 		part = strings.TrimSpace(part)
@@ -125,7 +126,10 @@ func ParsePortRange(portStr string) ([]int, error) {
 			if err != nil {
 				return nil, err
 			}
-			result = append(result, port)
+			if !seen[port] {
+				seen[port] = true
+				result = append(result, port)
+			}
 			continue
 		}
 
@@ -142,7 +146,10 @@ func ParsePortRange(portStr string) ([]int, error) {
 		}
 
 		for i := low; i <= high; i++ {
-			result = append(result, i)
+			if !seen[i] {
+				seen[i] = true
+				result = append(result, i)
+			}
 		}
 	}
 

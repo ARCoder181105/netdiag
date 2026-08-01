@@ -6,7 +6,7 @@ COMMIT      ?= $(shell git rev-parse --short HEAD 2>/dev/null)
 # ── Detect OS ────────────────────────────────────────────────────────────────
 ifeq ($(OS),Windows_NT)
     DETECTED_OS := windows
-    DATE        := $(shell powershell -NoProfile -Command \
+    DATE        ?= $(shell git log -1 --format=%cI 2>nul || powershell -NoProfile -Command \
                        "[DateTime]::UtcNow.ToString('yyyy-MM-ddTHH:mm:ssZ')")
     EXT         := .exe
     RMFILE      = if exist $1 del /f $1
@@ -20,7 +20,7 @@ else
     else
         DETECTED_OS := linux
     endif
-    DATE        := $(shell date -u +%Y-%m-%dT%H:%M:%SZ)
+    DATE        ?= $(shell git log -1 --format=%cI 2>/dev/null || date -u +%Y-%m-%dT%H:%M:%SZ)
     EXT         :=
     RMFILE      = rm -f $1
     RMDIR       = rm -rf $1
@@ -38,10 +38,11 @@ LDFLAGS := -s -w \
     -X main.commit=$(COMMIT) \
     -X main.date=$(DATE)
 
-# -trimpath keeps local paths out of the binary; CGO is not needed anywhere,
-# and disabling it keeps cross-compilation and static linking simple.
+# -trimpath keeps local paths out of the binary; CGO is not needed for build/
+# install/dist, and disabling it there keeps cross-compilation and static
+# linking simple. `test` needs cgo for -race, so CGO_ENABLED is scoped to the
+# recipes that build binaries rather than exported globally.
 BUILDFLAGS := -trimpath -ldflags "$(LDFLAGS)"
-export CGO_ENABLED = 0
 
 OUTPUT := $(BINARY_NAME)$(EXT)
 
@@ -64,7 +65,7 @@ else
 endif
 
 build: ## Compile binary for current OS
-	$(GO) build $(BUILDFLAGS) -o $(OUTPUT) .
+	CGO_ENABLED=0 $(GO) build $(BUILDFLAGS) -o $(OUTPUT) .
 
 run: ## Run the project directly with go run
 	$(GO) run .
@@ -106,11 +107,11 @@ ifeq ($(OS),Windows_NT)
 	set GOOS=windows&& set GOARCH=amd64&& $(GO) build $(BUILDFLAGS) -o dist/$(BINARY_NAME)-windows-amd64.exe .
 else
 	mkdir -p dist
-	GOOS=linux   GOARCH=amd64 $(GO) build $(BUILDFLAGS) -o dist/$(BINARY_NAME)-linux-amd64 .
-	GOOS=linux   GOARCH=arm64 $(GO) build $(BUILDFLAGS) -o dist/$(BINARY_NAME)-linux-arm64 .
-	GOOS=darwin  GOARCH=amd64 $(GO) build $(BUILDFLAGS) -o dist/$(BINARY_NAME)-darwin-amd64 .
-	GOOS=darwin  GOARCH=arm64 $(GO) build $(BUILDFLAGS) -o dist/$(BINARY_NAME)-darwin-arm64 .
-	GOOS=windows GOARCH=amd64 $(GO) build $(BUILDFLAGS) -o dist/$(BINARY_NAME)-windows-amd64.exe .
+	CGO_ENABLED=0 GOOS=linux   GOARCH=amd64 $(GO) build $(BUILDFLAGS) -o dist/$(BINARY_NAME)-linux-amd64 .
+	CGO_ENABLED=0 GOOS=linux   GOARCH=arm64 $(GO) build $(BUILDFLAGS) -o dist/$(BINARY_NAME)-linux-arm64 .
+	CGO_ENABLED=0 GOOS=darwin  GOARCH=amd64 $(GO) build $(BUILDFLAGS) -o dist/$(BINARY_NAME)-darwin-amd64 .
+	CGO_ENABLED=0 GOOS=darwin  GOARCH=arm64 $(GO) build $(BUILDFLAGS) -o dist/$(BINARY_NAME)-darwin-arm64 .
+	CGO_ENABLED=0 GOOS=windows GOARCH=amd64 $(GO) build $(BUILDFLAGS) -o dist/$(BINARY_NAME)-windows-amd64.exe .
 endif
 
 install: build ## Install binary to system PATH

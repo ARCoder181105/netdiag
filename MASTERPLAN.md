@@ -169,7 +169,7 @@ type Result struct {
     // Identity
     ProbeType  string    `json:"probe_type"`   // "ping", "scan", "http", etc.
     Target     string    `json:"target"`
-    Timestamp  time.Time `json:"timestamp"`
+    TimeStamp  time.Time `json:"timestamp"`
 
     // Outcome
     Severity   Severity  `json:"severity"`
@@ -888,7 +888,7 @@ netdiag scan 192.168.1.1 -p 1-1024 --benchmark
 
 **Benchmark output format** (values shown are placeholders):
 
-```
+```text
 Port Scan Benchmark: 192.168.1.1 (ports 1-1024)
 ═══════════════════════════════════════════════════
 Method         Time      Rate           Speedup

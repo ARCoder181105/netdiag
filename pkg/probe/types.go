@@ -132,8 +132,13 @@ type HTTPData struct {
 	TLSDaysLeft   int           `json:"tls_days_left"`
 	Redirects     int           `json:"redirects"`
 	TLSValid      bool          `json:"tls_valid"`
+	// TLSChecked reports that a peer certificate was actually inspected. It is
+	// false for plain HTTP and for resumed sessions that carry no peer chain,
+	// so TLSValid == false does not by itself mean the certificate expired.
+	TLSChecked bool `json:"tls_checked"`
 	// TLSVerifySkipped reports that certificate verification was disabled via
-	// --skip-tls, which makes TLSValid a statement about the expiry date only.
+	// --skip-tls, which makes TLSValid (when TLSChecked) a statement about the
+	// expiry date only.
 	TLSVerifySkipped bool `json:"tls_verify_skipped"`
 }
 

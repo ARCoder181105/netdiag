@@ -90,8 +90,8 @@ Correctness, consistency and production-hardening release. No new commands.
 - Config now contains only keys a command actually reads. The `monitor`,
   `database` and `metrics` sections were inert and are deferred to the phases
   that will consume them.
-- Logs are confirmed to go to stderr only, so `--json | jq` works with logging
-  enabled.
+- Logs go to stderr by default, or to the file given via `--log-file`; either
+  way `--json | jq` works with logging enabled.
 
 ### Removed
 

@@ -104,14 +104,14 @@ func renderHTTP(result probe.Result) {
 		return
 	}
 
+	tlsValid := "-"
 	tlsDays := "-"
-	if data.TLSDaysLeft > 0 {
+	if data.TLSChecked {
+		tlsValid = fmt.Sprintf("%t", data.TLSValid)
+		if data.TLSVerifySkipped {
+			tlsValid += " (unverified)"
+		}
 		tlsDays = fmt.Sprintf("%d", data.TLSDaysLeft)
-	}
-
-	tlsValid := fmt.Sprintf("%t", data.TLSValid)
-	if data.TLSVerifySkipped {
-		tlsValid += " (unverified)"
 	}
 
 	headers := []string{

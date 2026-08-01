@@ -17,12 +17,18 @@ func TestLoadReadsNestedKeyFromEnvironment(t *testing.T) {
 	}
 }
 
+// Isolate from both the real home directory (an actual ~/.netdiog.yaml would
+// override the default) and the env var set by the sibling test above (Load
+// shares the process-global viper instance).
 func TestLoadFallsBackToDefault(t *testing.T) {
+	t.Setenv("HOME", t.TempDir())
+	t.Setenv("USERPROFILE", t.TempDir())
+
 	if err := Load(); err != nil {
 		t.Fatalf("Load(): %v", err)
 	}
 
-	if AppConfig.Scan.DefaultTimeout == "" {
-		t.Error("Scan.DefaultTimeout is empty; the built-in default was not applied")
+	if got := AppConfig.Scan.DefaultTimeout; got != "1s" {
+		t.Errorf("Scan.DefaultTimeout = %q, want the built-in default %q", got, "1s")
 	}
 }

@@ -173,7 +173,12 @@ func localIPv4Network() (net.IP, *net.IPNet, error) {
 			continue
 		}
 
-		network := &net.IPNet{IP: ip.Mask(ipnet.Mask), Mask: ipnet.Mask}
+		mask := ipnet.Mask
+		if len(mask) == 16 {
+			mask = mask[12:]
+		}
+
+		network := &net.IPNet{IP: ip.Mask(mask), Mask: mask}
 
 		if preferred != nil && ip.Equal(preferred) {
 			return ip, network, nil
@@ -290,8 +295,13 @@ func compareIPv4(a, b string) int {
 	}
 }
 
+// resolveHostname does reverse DNS with a short bound of its own: a slow or
+// unresponsive PTR server must not stall the sweep or trace calling it.
 func resolveHostname(ip string) string {
-	names, err := net.LookupAddr(ip)
+	ctx, cancel := context.WithTimeout(context.Background(), time.Second)
+	defer cancel()
+
+	names, err := net.DefaultResolver.LookupAddr(ctx, ip)
 	if err == nil && len(names) > 0 {
 		return strings.TrimSuffix(names[0], ".")
 	}

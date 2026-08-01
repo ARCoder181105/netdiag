@@ -2,6 +2,7 @@ package probe
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"net"
 	"os"
@@ -101,8 +102,15 @@ func (t *TraceProber) Probe(ctx context.Context) (Result, error) {
 			break
 		}
 
-		reply, ok := readTraceReply(icmpConn, id, ttl, t.Timeout)
+		reply, ok, readErr := readTraceReply(ctx, icmpConn, id, ttl, t.Timeout)
 		rtt := time.Since(startHop)
+
+		if readErr != nil {
+			// The socket itself failed (or the trace was canceled) rather than
+			// simply timing out. Treating this as a normal timeout would render
+			// every remaining hop as "*" even though nothing was ever sent.
+			break
+		}
 
 		hop := TraceHop{HopNumber: ttl}
 
@@ -158,28 +166,40 @@ type traceReply struct {
 	Unreachable string
 }
 
-// readTraceReply waits up to timeout for an ICMP reply belonging to this trace.
-// Packets addressed to other processes are skipped rather than attributed to
-// the current hop. ok reports whether anything matched at all.
-func readTraceReply(conn *icmp.PacketConn, id, seq int, timeout time.Duration) (reply traceReply, ok bool) {
+// readTraceReply waits up to timeout for an ICMP reply belonging to this trace,
+// clamped to ctx's deadline if it is sooner. Packets addressed to other
+// processes are skipped rather than attributed to the current hop. ok reports
+// whether anything matched at all; a non-nil err means the read failed for a
+// reason other than the deadline expiring (socket error, cancellation) and the
+// TTL loop should stop rather than record a timeout hop.
+func readTraceReply(ctx context.Context, conn *icmp.PacketConn, id, seq int, timeout time.Duration) (reply traceReply, ok bool, err error) {
 	deadline := time.Now().Add(timeout)
+	if d, hasDeadline := ctx.Deadline(); hasDeadline && d.Before(deadline) {
+		deadline = d
+	}
 	buf := make([]byte, 1500)
 
 	for {
+		if err := ctx.Err(); err != nil {
+			return traceReply{}, false, err
+		}
 		if time.Now().After(deadline) {
-			return traceReply{}, false
+			return traceReply{}, false, nil
 		}
 		if err := conn.SetReadDeadline(deadline); err != nil {
-			return traceReply{}, false
+			return traceReply{}, false, err
 		}
 
-		n, from, err := conn.ReadFrom(buf)
-		if err != nil {
-			return traceReply{}, false
+		n, from, readErr := conn.ReadFrom(buf)
+		if readErr != nil {
+			if errors.Is(readErr, os.ErrDeadlineExceeded) {
+				return traceReply{}, false, nil
+			}
+			return traceReply{}, false, readErr
 		}
 
-		parsed, err := icmp.ParseMessage(ipv4.ICMPTypeEchoReply.Protocol(), buf[:n])
-		if err != nil {
+		parsed, parseErr := icmp.ParseMessage(ipv4.ICMPTypeEchoReply.Protocol(), buf[:n])
+		if parseErr != nil {
 			continue
 		}
 
@@ -187,14 +207,14 @@ func readTraceReply(conn *icmp.PacketConn, id, seq int, timeout time.Duration) (
 		case *icmp.Echo:
 			// Our own echo reply from the destination.
 			if parsed.Type == ipv4.ICMPTypeEchoReply && body.ID == id && body.Seq == seq {
-				return traceReply{Peer: from.String(), EchoReply: true}, true
+				return traceReply{Peer: from.String(), EchoReply: true}, true, nil
 			}
 
 		case *icmp.TimeExceeded:
 			// An intermediate router quotes the IP header plus the first bytes
 			// of our original packet; the echo we sent is inside it.
 			if echoMatches(body.Data, id, seq) {
-				return traceReply{Peer: from.String()}, true
+				return traceReply{Peer: from.String()}, true, nil
 			}
 
 		case *icmp.DstUnreach:
@@ -203,7 +223,7 @@ func readTraceReply(conn *icmp.PacketConn, id, seq int, timeout time.Duration) (
 				return traceReply{
 					Peer:        from.String(),
 					Unreachable: unreachReason(parsed.Code),
-				}, true
+				}, true, nil
 			}
 		}
 		// Anything else belongs to another process. Keep reading.

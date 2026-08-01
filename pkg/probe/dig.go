@@ -33,6 +33,12 @@ func (d *DigProber) Probe(ctx context.Context) (Result, error) {
 
 	start := time.Now()
 
+	if d.Timeout > 0 {
+		var cancel context.CancelFunc
+		ctx, cancel = context.WithTimeout(ctx, d.Timeout)
+		defer cancel()
+	}
+
 	var resolver *net.Resolver
 
 	// Custom DNS server support

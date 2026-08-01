@@ -95,7 +95,8 @@ func (h *HTTPProber) Probe(ctx context.Context) (Result, error) {
 		TLSDaysLeft:      tlsDaysLeft,
 		Redirects:        redirects,
 		TLSValid:         tlsValid,
-		TLSVerifySkipped: h.SkipTLSVerify,
+		TLSChecked:       certChecked,
+		TLSVerifySkipped: resp.TLS != nil && h.SkipTLSVerify,
 	}
 
 	severity := SeverityOK
@@ -115,7 +116,7 @@ func (h *HTTPProber) Probe(ctx context.Context) (Result, error) {
 		severity = SeverityError
 		success = false
 		message = "Certificate has expired"
-	} else if tlsDaysLeft > 0 && tlsDaysLeft < 14 {
+	} else if certChecked && tlsDaysLeft < 14 && severity == SeverityOK {
 		severity = SeverityWarning
 		message = fmt.Sprintf("Certificate expires in %d days", tlsDaysLeft)
 	}
