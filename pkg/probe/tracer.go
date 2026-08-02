@@ -47,7 +47,7 @@ func (t *TraceProber) Probe(ctx context.Context) (Result, error) {
 
 	conn, err := net.ListenPacket("ip4:1", "0.0.0.0")
 	if err != nil {
-		return fail("Permission denied: Traceroute requires root/sudo privileges")
+		return fail(fmt.Sprintf("Traceroute setup failed (requires root/sudo privileges): %v", err))
 	}
 	defer func() { _ = conn.Close() }()
 
@@ -56,7 +56,7 @@ func (t *TraceProber) Probe(ctx context.Context) (Result, error) {
 
 	icmpConn, err := icmp.ListenPacket("ip4:icmp", "0.0.0.0")
 	if err != nil {
-		return fail("Permission denied: Traceroute requires root/sudo privileges")
+		return fail(fmt.Sprintf("Traceroute setup failed (requires root/sudo privileges): %v", err))
 	}
 	defer func() { _ = icmpConn.Close() }()
 

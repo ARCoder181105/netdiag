@@ -109,28 +109,7 @@ func (d *DiscoverProber) Probe(ctx context.Context) (Result, error) {
 		Devices: devices,
 	}
 
-	severity := SeverityOK
-	message := fmt.Sprintf("Scan complete. Found %d devices in %s.", len(devices), ipnet)
-
-	switch {
-	case ctx.Err() != nil:
-		// Interrupted part-way: the device list is whatever answered before the
-		// cancellation, so reporting a completed scan would be a lie.
-		severity = SeverityWarning
-		message = fmt.Sprintf(
-			"Scan interrupted after finding %d devices in %s; results are incomplete.",
-			len(devices), ipnet,
-		)
-	case len(devices) == 0:
-		severity = SeverityWarning
-		message = fmt.Sprintf("No devices found in %s", ipnet)
-	case truncated:
-		severity = SeverityWarning
-		message = fmt.Sprintf(
-			"Found %d devices. %s is larger than %d addresses; only the first %d were scanned.",
-			len(devices), ipnet, maxSweepHosts, maxSweepHosts,
-		)
-	}
+	severity, message := discoverSummary(len(devices), ipnet.String(), truncated, ctx.Err() != nil)
 
 	return Result{
 		TimeStamp:    time.Now(),
@@ -142,6 +121,29 @@ func (d *DiscoverProber) Probe(ctx context.Context) (Result, error) {
 		Message:      message,
 		Latency:      time.Since(start),
 	}, nil
+}
+
+// discoverSummary classifies a completed sweep. Kept pure so the classification
+// can be tested without a network.
+func discoverSummary(found int, prefix string, truncated, interrupted bool) (Severity, string) {
+	switch {
+	case interrupted:
+		// Interrupted part-way: the device list is whatever answered before the
+		// cancellation, so reporting a completed scan would be a lie.
+		return SeverityWarning, fmt.Sprintf(
+			"Scan interrupted after finding %d devices in %s; results are incomplete.",
+			found, prefix,
+		)
+	case truncated:
+		return SeverityWarning, fmt.Sprintf(
+			"Found %d devices. %s is larger than %d addresses; only the first %d were scanned.",
+			found, prefix, maxSweepHosts, maxSweepHosts,
+		)
+	case found == 0:
+		return SeverityWarning, fmt.Sprintf("No devices found in %s", prefix)
+	default:
+		return SeverityOK, fmt.Sprintf("Scan complete. Found %d devices in %s.", found, prefix)
+	}
 }
 
 // localIPv4Network returns this machine's primary IPv4 address and the network

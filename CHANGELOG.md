@@ -7,6 +7,29 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Changed
+
+- **Breaking:** `discover --timeout` now takes a duration (`-t 500ms`, `-t 1s`)
+  instead of an integer count of milliseconds, matching every other command.
+
+### Added
+
+- `http --json` output includes a `method` field.
+
+### Fixed
+
+- `ping --timeout` default raised from 1s to 5s. pro-bing's timeout bounds the
+  whole run, not a single packet, so the old default cut the default 3-packet
+  run short and reported false loss on healthy hosts.
+- `dig` and `scan` now reject a non-positive `--timeout` like every other
+  command.
+- Traceroute setup failures report the underlying socket error instead of
+  always claiming a privilege problem.
+- A truncated `discover` sweep that found no devices now says only the scanned
+  subset was covered, instead of claiming the whole network is empty.
+- `netdiag` no longer prints its own top-level error a second time after
+  Cobra already reported it.
+
 ## [0.3.0] - 2026-08-01
 
 Correctness, consistency and production-hardening release. No new commands.
@@ -77,10 +100,12 @@ Correctness, consistency and production-hardening release. No new commands.
 
 ### Changed
 
-- **All 8 commands now share one execution path** (`cmd/run.go`). The same
+- **7 of 8 commands now share one execution path** (`cmd/run.go`). The same
   ~40-line block — build prober, run, synthesize an error result, log, handle
   `--json`, switch on severity — had been copy-pasted per command and had
   drifted. Commands are now flag parsing, validation, and table rendering only.
+  `ping` targets multiple hosts and reuses the same logging/exit helpers
+  around a batch loop instead of calling `runProbe` directly.
 - `probe.ErrorResult` and `output.PrintBySeverity` replace six copies each of
   the same inline logic.
 - Builds use `-trimpath` and `CGO_ENABLED=0`; `make fmt` pins its tool

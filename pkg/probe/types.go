@@ -125,6 +125,7 @@ type DNSData struct {
 
 // HTTPData contains the results of an HTTP probe.
 type HTTPData struct {
+	Method        string        `json:"method"`
 	TLSIssuer     string        `json:"tls_issuer"`
 	Latency       time.Duration `json:"latency"`
 	ContentLength int64         `json:"content_length"`

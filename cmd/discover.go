@@ -11,7 +11,7 @@ import (
 	"github.com/ARCoder181105/netdiag/pkg/probe"
 )
 
-var discoverTimeout int
+var discoverTimeout time.Duration
 
 var discoverCmd = &cobra.Command{
 	Use:   "discover",
@@ -26,14 +26,13 @@ capped at 1024 addresses.
 
 Examples:
   netdiag discover
-  netdiag discover -t 1000`,
+  netdiag discover -t 1s`,
 	Args: cobra.NoArgs,
 	Run: func(_ *cobra.Command, _ []string) {
-		pingTimeout := time.Duration(discoverTimeout) * time.Millisecond
-		requirePositiveDuration("--timeout", pingTimeout)
+		requirePositiveDuration("--timeout", discoverTimeout)
 
 		prober := &probe.DiscoverProber{
-			Timeout: pingTimeout,
+			Timeout: discoverTimeout,
 		}
 
 		runProbe(prober, "local-network", probeOpts{
@@ -75,5 +74,5 @@ func renderDiscover(result probe.Result) {
 
 func init() {
 	rootCmd.AddCommand(discoverCmd)
-	discoverCmd.Flags().IntVarP(&discoverTimeout, "timeout", "t", 500, "Ping timeout in milliseconds")
+	discoverCmd.Flags().DurationVarP(&discoverTimeout, "timeout", "t", 500*time.Millisecond, "Ping timeout per host (e.g. 500ms, 1s)")
 }

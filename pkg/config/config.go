@@ -28,6 +28,8 @@ var AppConfig Config
 
 // Load reads ~/.netdiag.yaml and falls back to defaults if missing.
 func Load() error {
+	viper.Reset()
+
 	home, err := os.UserHomeDir()
 	if err != nil {
 		return err

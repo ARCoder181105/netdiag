@@ -192,7 +192,10 @@ func init() {
 	rootCmd.AddCommand(pingCmd)
 
 	pingCmd.Flags().IntVarP(&count, "count", "c", 3, "Number of ICMP packets to send")
-	pingCmd.Flags().DurationVarP(&timeout, "timeout", "t", 1*time.Second, "Timeout per host (e.g. 1s, 500ms)")
+	// pro-bing's Timeout bounds the whole run, not one packet — it must exceed
+	// count*interval or the default 3-packet run gets cut short and reports
+	// false loss.
+	pingCmd.Flags().DurationVarP(&timeout, "timeout", "t", 5*time.Second, "Total timeout for the whole run, not per packet (e.g. 5s, 500ms)")
 	pingCmd.Flags().DurationVarP(&interval, "interval", "i", 1*time.Second, "Time to wait between packets (e.g. 1s, 500ms)")
 	pingCmd.Flags().IntVar(&pingWorkers, "concurrency", 20, "Number of hosts to ping concurrently")
 }

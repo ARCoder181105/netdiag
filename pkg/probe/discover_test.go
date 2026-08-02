@@ -3,6 +3,7 @@ package probe
 import (
 	"net"
 	"reflect"
+	"strings"
 	"testing"
 )
 
@@ -88,6 +89,58 @@ func TestHostAddresses(t *testing.T) {
 				if tt.skip != "" && h == tt.skip {
 					t.Errorf("host list contains the local address %s", h)
 				}
+			}
+		})
+	}
+}
+
+// A truncated sweep that found nothing used to fall into the "no devices"
+// branch and claim the whole network was empty, when only the first
+// maxSweepHosts addresses were ever probed.
+func TestDiscoverSummary(t *testing.T) {
+	tests := []struct {
+		name                 string
+		found                int
+		truncated            bool
+		interrupted          bool
+		wantSeverity         Severity
+		wantMessageSubstring string
+	}{
+		{
+			name:  "truncated with no devices reports partial coverage, not an empty network",
+			found: 0, truncated: true,
+			wantSeverity: SeverityWarning, wantMessageSubstring: "only the first",
+		},
+		{
+			name:  "empty non-truncated sweep reports the network is empty",
+			found: 0, truncated: false,
+			wantSeverity: SeverityWarning, wantMessageSubstring: "No devices found",
+		},
+		{
+			name:  "truncated sweep with devices keeps the truncation message",
+			found: 5, truncated: true,
+			wantSeverity: SeverityWarning, wantMessageSubstring: "only the first",
+		},
+		{
+			name:  "interrupted wins over truncated and empty",
+			found: 0, truncated: true, interrupted: true,
+			wantSeverity: SeverityWarning, wantMessageSubstring: "interrupted",
+		},
+		{
+			name:  "complete sweep with devices is healthy",
+			found: 3, truncated: false,
+			wantSeverity: SeverityOK, wantMessageSubstring: "Scan complete",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			severity, message := discoverSummary(tt.found, "10.0.0.0/24", tt.truncated, tt.interrupted)
+			if severity != tt.wantSeverity {
+				t.Errorf("severity = %v, want %v", severity, tt.wantSeverity)
+			}
+			if !strings.Contains(message, tt.wantMessageSubstring) {
+				t.Errorf("message = %q, want substring %q", message, tt.wantMessageSubstring)
 			}
 		})
 	}

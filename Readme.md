@@ -456,11 +456,11 @@ Scan your local network for active devices using ping sweeps.
 netdiag discover
 
 Flags:
-  -t, --timeout int     Ping timeout in milliseconds (default: 500)
+  -t, --timeout duration     Ping timeout per host (default: 500ms)
 
 Examples:
   netdiag discover
-  netdiag discover -t 1000
+  netdiag discover -t 1s
 ```
 
 **Output**:
@@ -533,7 +533,9 @@ type Prober interface {
 }
 ```
 
-This is what lets one shared runner drive every command.
+This is what lets one shared runner drive most commands. `ping` targets multiple
+hosts, so it runs a batch loop over the same helpers (`logResult`,
+`exitForAll`) instead of calling `runProbe` directly.
 
 ### The `Result` type
 

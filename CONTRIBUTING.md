@@ -100,7 +100,7 @@ netdiag/
 ├── main.go                 # Application entry point
 ├── cmd/                    # Cobra commands: flags, validation, rendering
 │   ├── root.go            # Root command, global flags, logger/config wiring
-│   ├── run.go             # runProbe(): shared execution path for all commands
+│   ├── run.go             # runProbe(): shared runner for single-target commands, plus the batch helpers
 │   ├── ping.go            # Ping command
 │   ├── speedtest.go       # Speed test command
 │   ├── tracer.go          # Traceroute command
@@ -131,6 +131,9 @@ netdiag/
   `probe.Prober`, and hands it to `runProbe`. It must not contain network logic.
 - **`cmd/run.go`**: Owns cancellation, error normalization, structured logging,
   `--json`, color, and exit codes, so those never drift between commands.
+  Single-target commands call `runProbe` directly; batch commands such as
+  `ping` aggregate per-host results themselves before rendering, reusing the
+  same `logResult`/`exitForAll` helpers.
 - **`pkg/probe/`**: All network logic. Every prober returns a `probe.Result`;
   probes never print and never call `os.Exit`, which is what makes them
   testable and reusable.

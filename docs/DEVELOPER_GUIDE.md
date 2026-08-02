@@ -270,7 +270,7 @@ via `-ldflags -X main.version=...`.
    git push origin v0.3.0
    ```
 
-5. **GitHub Actions** will automatically:
+4. **GitHub Actions** will automatically:
    - Build binaries for all platforms
    - Generate checksums
    - Create a GitHub release

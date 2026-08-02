@@ -54,6 +54,8 @@ Examples:
 			}
 		}
 
+		requirePositiveDuration("--timeout", digTimeout)
+
 		prober := &probe.DigProber{
 			Host:       host,
 			Server:     digServer,

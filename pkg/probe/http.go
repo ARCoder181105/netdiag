@@ -88,6 +88,7 @@ func (h *HTTPProber) Probe(ctx context.Context) (Result, error) {
 	}
 
 	httpData := &HTTPData{
+		Method:           h.Method,
 		TLSIssuer:        tlsIssuer,
 		Latency:          latency,
 		ContentLength:    contentLength,

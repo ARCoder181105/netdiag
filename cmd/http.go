@@ -41,7 +41,7 @@ Examples:
 		requirePositiveDuration("--timeout", reqTimeout)
 
 		// Normalize once so the request and the rendered table agree.
-		method = strings.ToUpper(strings.TrimSpace(method))
+		reqMethod := strings.ToUpper(strings.TrimSpace(method))
 
 		// Not in JSON mode: stdout must stay parseable. JSON callers get the
 		// same information from the tls_verify_skipped field.
@@ -51,7 +51,7 @@ Examples:
 
 		prober := &probe.HTTPProber{
 			URL:           target,
-			Method:        method,
+			Method:        reqMethod,
 			Timeout:       reqTimeout,
 			SkipTLSVerify: skipTLS,
 		}
@@ -121,7 +121,7 @@ func renderHTTP(result probe.Result) {
 
 	rows := [][]string{{
 		result.Target,
-		method,
+		data.Method,
 		fmt.Sprintf("%d", data.StatusCode),
 		result.Latency.Round(time.Millisecond).String(),
 		fmt.Sprintf("%d", data.Redirects),

@@ -70,7 +70,9 @@ func renderSpeedtest(result probe.Result) {
 		{"Download", fmt.Sprintf("%.2f Mbps", data.DownloadMbps)},
 	}
 
-	if !noUpload {
+	// ponytail: 0 Mbps reads as "skipped"; a genuine 0.00 upload hides the row.
+	// Add SpeedTestData.UploadSkipped if that ever matters.
+	if data.UploadMbps > 0 {
 		rows = append(rows, []string{"Upload", fmt.Sprintf("%.2f Mbps", data.UploadMbps)})
 	}
 

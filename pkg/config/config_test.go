@@ -17,9 +17,9 @@ func TestLoadReadsNestedKeyFromEnvironment(t *testing.T) {
 	}
 }
 
-// Isolate from both the real home directory (an actual ~/.netdiog.yaml would
-// override the default) and the env var set by the sibling test above (Load
-// shares the process-global viper instance).
+// Isolate from the real home directory: an actual ~/.netdiag.yaml would
+// override the default. Load resets viper's env/config state itself, so the
+// sibling test's NETDIAG_SCAN_DEFAULT_TIMEOUT env var does not leak here.
 func TestLoadFallsBackToDefault(t *testing.T) {
 	t.Setenv("HOME", t.TempDir())
 	t.Setenv("USERPROFILE", t.TempDir())

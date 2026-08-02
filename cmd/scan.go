@@ -48,10 +48,13 @@ Examples:
 			failUsage("--concurrency must be at least 1")
 		}
 
+		effectiveTimeout := scanTimeoutValue(cmd)
+		requirePositiveDuration("--timeout", effectiveTimeout)
+
 		scanner := &probe.ConnectScanner{
 			Host:        host,
 			Ports:       portList,
-			Timeout:     scanTimeoutValue(cmd),
+			Timeout:     effectiveTimeout,
 			Concurrency: concurrency,
 		}
 
