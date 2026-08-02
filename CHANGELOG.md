@@ -7,6 +7,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.3.0] - 2026-08-02
+
+Correctness, consistency and production-hardening release. No new commands.
+
 ### Changed
 
 - **Breaking:** `discover --timeout` now takes a duration (`-t 500ms`, `-t 1s`)
@@ -14,12 +18,30 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **Breaking:** `http --timeout` now takes a duration (`-t 10s`) instead of an
   integer count of seconds, matching every other command.
 
-### Added
-
-- `http --json` output includes a `method` field.
-
 ### Fixed
 
+- **ICMP DNS resolution is now bounded by `--timeout`.** `NewPinger` resolves
+  during construction, before `ResolveTimeout` had a chance to be set — it
+  defaults to 0 (unbounded), so a dead or slow DNS server could hang `ping` and
+  `discover` past their stated timeout. Resolution now happens explicitly after
+  `Timeout`/`ResolveTimeout` are configured.
+- **`speedtest` no longer hangs on Ctrl+C while fetching the server list.**
+  `FetchServers()` ignored the probe context; switched to
+  `FetchServerListContext(ctx)`.
+- **`discover` no longer wraps around for the top-of-space `/31`.** The host
+  loop used `addr <= network+1`, and for `255.255.255.254/31` `network+1`
+  overflows `uint32` to 0, which is still `<= network+1` — turning a
+  two-address sweep into a 1024-host flood. Rewritten as a bounded two-iteration
+  loop.
+- **`discover` no longer reports success for an interrupted sweep.** A
+  Ctrl+C-cancelled scan always set `Success: true`, so a partial device list
+  was reported and logged as a clean run. It now exits non-zero when
+  interrupted; a completed sweep that found 0 devices, or was truncated by the
+  1024-host cap, still exits 0 as a Warning.
+- `ping`'s Loss column shows `-` instead of a fabricated `100.00%` for hosts
+  that never had a packet sent (DNS failure, no ICMP privilege).
+- `scan`'s reported ports/sec keeps one decimal place instead of flooring to
+  `0` for any scan slower than one port per second.
 - `ping --timeout` default raised from 1s to 5s. pro-bing's timeout bounds the
   whole run, not a single packet, so the old default cut the default 3-packet
   run short and reported false loss on healthy hosts.
@@ -31,13 +53,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   subset was covered, instead of claiming the whole network is empty.
 - `netdiag` no longer prints its own top-level error a second time after
   Cobra already reported it.
-
-## [0.3.0] - 2026-08-01
-
-Correctness, consistency and production-hardening release. No new commands.
-
-### Fixed
-
+- Windows `make dist` now sets `CGO_ENABLED=0` for every target, matching the
+  other platform targets — cross-compiled binaries no longer depend on which
+  host ran the build.
 - **`ping` and `discover` no longer require root.** Both hardcoded
   `SetPrivileged(true)`, so they failed for anyone without `CAP_NET_RAW` —
   which is the default state of a `go install`ed binary on Linux.
@@ -93,6 +111,7 @@ Correctness, consistency and production-hardening release. No new commands.
   always hardcoded to `info`.
 - `dig AAAA` for IPv6 address lookups.
 - `whois --timeout`.
+- `http --json` output includes a `method` field.
 - `SECURITY.md` with a vulnerability reporting process and scope.
 - `.github/dependabot.yml` for Go modules and GitHub Actions.
 - `make test-cover` and `make tidy`, both already referenced by the developer
