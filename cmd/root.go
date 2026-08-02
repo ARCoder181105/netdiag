@@ -74,7 +74,9 @@ pipeline. Check the "severity" field in --json output to act on warnings.`,
 // Execute adds all child commands to the root command and sets flags appropriately.
 func Execute() {
 	if err := rootCmd.Execute(); err != nil {
-		// Cobra already printed the error (SilenceErrors is not set).
+		if rootCmd.SilenceErrors {
+			fmt.Fprintln(os.Stderr, "Error:", err)
+		}
 		os.Exit(exitUsage)
 	}
 }
