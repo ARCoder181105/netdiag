@@ -57,6 +57,13 @@ func TestHostAddresses(t *testing.T) {
 			wantCount: 2, wantFirst: "10.0.0.4", wantLast: "10.0.0.5",
 		},
 		{
+			// network+1 wraps to 0 in uint32 for the top /31; an addr <=
+			// network+1 loop never terminates and floods the host list.
+			name: "/31 at the top of the address space does not wrap",
+			cidr: "255.255.255.254/31", skip: "", limit: 1024,
+			wantCount: 2, wantFirst: "255.255.255.254", wantLast: "255.255.255.255",
+		},
+		{
 			name: "/32 probes the address itself",
 			cidr: "192.168.1.7/32", skip: "", limit: 1024,
 			wantCount: 1, wantFirst: "192.168.1.7", wantLast: "192.168.1.7",

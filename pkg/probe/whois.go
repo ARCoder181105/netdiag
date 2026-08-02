@@ -34,6 +34,19 @@ func (w *WhoisProber) Probe(ctx context.Context) (Result, error) {
 		}
 	}
 
+	succeed := func(raw string, sev Severity, msg string) Result {
+		return Result{
+			TimeStamp: time.Now(),
+			ProbeType: "whois",
+			Target:    w.Domain,
+			WhoisData: &WhoisData{Raw: raw},
+			Success:   true,
+			Severity:  sev,
+			Message:   msg,
+			Latency:   time.Since(start),
+		}
+	}
+
 	client := whois.NewClient()
 	if w.Timeout > 0 {
 		// SetTimeout bounds each individual hop, and a lookup can chain up to
@@ -79,27 +92,9 @@ func (w *WhoisProber) Probe(ctx context.Context) (Result, error) {
 
 		raw := strings.TrimSpace(res.raw)
 		if raw == "" {
-			return Result{
-				TimeStamp: time.Now(),
-				ProbeType: "whois",
-				Target:    w.Domain,
-				WhoisData: &WhoisData{Raw: raw},
-				Success:   true,
-				Severity:  SeverityWarning,
-				Message:   "WHOIS returned an empty record",
-				Latency:   time.Since(start),
-			}, nil
+			return succeed(raw, SeverityWarning, "WHOIS returned an empty record"), nil
 		}
 
-		return Result{
-			TimeStamp: time.Now(),
-			ProbeType: "whois",
-			Target:    w.Domain,
-			WhoisData: &WhoisData{Raw: raw},
-			Success:   true,
-			Severity:  SeverityOK,
-			Message:   "WHOIS query successful",
-			Latency:   time.Since(start),
-		}, nil
+		return succeed(raw, SeverityOK, "WHOIS query successful"), nil
 	}
 }

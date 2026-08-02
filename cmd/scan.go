@@ -114,7 +114,7 @@ func renderScan(result probe.Result) {
 	}
 
 	output.PrintInfo(fmt.Sprintf(
-		"Scanned %d ports in %s (%.0f ports/sec) using the %s method.",
+		"Scanned %d ports in %s (%.1f ports/sec) using the %s method.",
 		data.TotalPorts,
 		result.Latency.Round(time.Millisecond),
 		data.PortsPerSec,

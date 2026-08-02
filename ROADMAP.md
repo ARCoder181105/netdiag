@@ -118,12 +118,12 @@ netdiag scan 192.168.1.1 -p 1-1024  --benchmark     # compare both methods
 
 Current `net.DialTimeout("tcp", ...)` completes a full 3-way TCP handshake per port — wasteful, slow, and leaves connection logs on the target. A SYN scan sends only the initial SYN packet and reads the response (SYN-ACK = open, RST = closed) — never completing the handshake.
 
-### What's Built
+### Planned deliverables
 
-- **`pkg/probe/syn_scanner.go`** — Raw TCP SYN packet crafting using `google/gopacket`. Manually computes TCP checksums. Requires `cap_net_raw` or root.
-- **Adaptive concurrency** — Semaphore that backs off when packet loss is detected (reduces concurrency on congestion, ramps up on clean network).
-- **Benchmark mode** — Runs both methods against the same target and prints a comparison table.
-- **Fallback** — Automatically falls back to connect scan if raw socket creation fails (no privileges).
+- **`pkg/probe/syn_scanner.go`** — will do raw TCP SYN packet crafting using `google/gopacket`, manually computing TCP checksums. Will require `cap_net_raw` or root.
+- **Adaptive concurrency** — a semaphore that backs off when packet loss is detected (reduces concurrency on congestion, ramps up on clean network).
+- **Benchmark mode** — will run both methods against the same target and print a comparison table.
+- **Fallback** — will automatically fall back to connect scan if raw socket creation fails (no privileges).
 
 ### Target (illustrative — not measured)
 

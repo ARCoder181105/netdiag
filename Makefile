@@ -100,11 +100,11 @@ tidy: ## Prune and sync go.mod / go.sum
 dist: ## Cross-compile for all platforms into dist/
 ifeq ($(OS),Windows_NT)
 	@powershell -NoProfile -Command "if (-not (Test-Path dist)) { New-Item -ItemType Directory dist | Out-Null }"
-	set GOOS=linux&& set GOARCH=amd64&& $(GO) build $(BUILDFLAGS) -o dist/$(BINARY_NAME)-linux-amd64 .
-	set GOOS=linux&& set GOARCH=arm64&& $(GO) build $(BUILDFLAGS) -o dist/$(BINARY_NAME)-linux-arm64 .
-	set GOOS=darwin&& set GOARCH=amd64&& $(GO) build $(BUILDFLAGS) -o dist/$(BINARY_NAME)-darwin-amd64 .
-	set GOOS=darwin&& set GOARCH=arm64&& $(GO) build $(BUILDFLAGS) -o dist/$(BINARY_NAME)-darwin-arm64 .
-	set GOOS=windows&& set GOARCH=amd64&& $(GO) build $(BUILDFLAGS) -o dist/$(BINARY_NAME)-windows-amd64.exe .
+	set CGO_ENABLED=0&& set GOOS=linux&& set GOARCH=amd64&& $(GO) build $(BUILDFLAGS) -o dist/$(BINARY_NAME)-linux-amd64 .
+	set CGO_ENABLED=0&& set GOOS=linux&& set GOARCH=arm64&& $(GO) build $(BUILDFLAGS) -o dist/$(BINARY_NAME)-linux-arm64 .
+	set CGO_ENABLED=0&& set GOOS=darwin&& set GOARCH=amd64&& $(GO) build $(BUILDFLAGS) -o dist/$(BINARY_NAME)-darwin-amd64 .
+	set CGO_ENABLED=0&& set GOOS=darwin&& set GOARCH=arm64&& $(GO) build $(BUILDFLAGS) -o dist/$(BINARY_NAME)-darwin-arm64 .
+	set CGO_ENABLED=0&& set GOOS=windows&& set GOARCH=amd64&& $(GO) build $(BUILDFLAGS) -o dist/$(BINARY_NAME)-windows-amd64.exe .
 else
 	mkdir -p dist
 	CGO_ENABLED=0 GOOS=linux   GOARCH=amd64 $(GO) build $(BUILDFLAGS) -o dist/$(BINARY_NAME)-linux-amd64 .

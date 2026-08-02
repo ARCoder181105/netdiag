@@ -157,8 +157,7 @@ func renderPing(results []probe.Result) {
 	rows := make([][]string, 0, len(results))
 
 	for _, result := range results {
-		ip, sent, recv := "-", "-", "-"
-		loss := "100.00%"
+		ip, sent, recv, loss := "-", "-", "-", "-"
 		minRTT, avgRTT, maxRTT, stddev := "-", "-", "-", "-"
 
 		if result.PingData != nil {

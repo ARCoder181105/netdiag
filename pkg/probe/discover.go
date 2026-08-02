@@ -5,7 +5,6 @@ import (
 	"fmt"
 	"net"
 	"sort"
-	"strings"
 	"sync"
 	"time"
 
@@ -109,14 +108,15 @@ func (d *DiscoverProber) Probe(ctx context.Context) (Result, error) {
 		Devices: devices,
 	}
 
-	severity, message := discoverSummary(len(devices), ipnet.String(), truncated, ctx.Err() != nil)
+	interrupted := ctx.Err() != nil
+	severity, message := discoverSummary(len(devices), ipnet.String(), truncated, interrupted)
 
 	return Result{
 		TimeStamp:    time.Now(),
 		ProbeType:    "discover",
 		Target:       ipnet.String(),
 		DiscoverData: data,
-		Success:      true,
+		Success:      !interrupted,
 		Severity:     severity,
 		Message:      message,
 		Latency:      time.Since(start),
@@ -236,11 +236,16 @@ func hostAddresses(ipnet *net.IPNet, skip net.IP, limit int) (hosts []string, tr
 
 	// RFC 3021: a /31 is a point-to-point link with no network or broadcast
 	// address, so both of its addresses are usable hosts.
+	//
+	// Index-based, not addr <= network+1: for the top /31 (255.255.255.254/31),
+	// network+1 is 0xFFFFFFFF and addr++ wraps to 0, which is still <=
+	// 0xFFFFFFFF, turning this into an unbounded loop.
 	if ones == 31 {
-		for addr := network; addr <= network+1; addr++ {
+		for i := range 2 {
 			if len(hosts) >= limit {
 				return hosts, true
 			}
+			addr := network + uint32(i)
 			if ip := ipv4FromBinary(addr); !ip.Equal(skip) {
 				hosts = append(hosts, ip.String())
 			}
@@ -295,17 +300,4 @@ func compareIPv4(a, b string) int {
 	default:
 		return 0
 	}
-}
-
-// resolveHostname does reverse DNS with a short bound of its own: a slow or
-// unresponsive PTR server must not stall the sweep or trace calling it.
-func resolveHostname(ip string) string {
-	ctx, cancel := context.WithTimeout(context.Background(), time.Second)
-	defer cancel()
-
-	names, err := net.DefaultResolver.LookupAddr(ctx, ip)
-	if err == nil && len(names) > 0 {
-		return strings.TrimSuffix(names[0], ".")
-	}
-	return "(Unknown)"
 }

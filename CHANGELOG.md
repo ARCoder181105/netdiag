@@ -11,6 +11,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - **Breaking:** `discover --timeout` now takes a duration (`-t 500ms`, `-t 1s`)
   instead of an integer count of milliseconds, matching every other command.
+- **Breaking:** `http --timeout` now takes a duration (`-t 10s`) instead of an
+  integer count of seconds, matching every other command.
 
 ### Added
 

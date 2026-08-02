@@ -14,9 +14,9 @@ import (
 )
 
 var (
-	timeOut int
-	method  string
-	skipTLS bool
+	httpTimeout time.Duration
+	method      string
+	skipTLS     bool
 )
 
 var httpCmd = &cobra.Command{
@@ -27,7 +27,7 @@ var httpCmd = &cobra.Command{
 Examples:
   netdiag http example.com
   netdiag http https://example.com
-  netdiag http example.com --timeout 10
+  netdiag http example.com --timeout 10s
   netdiag http example.com --method POST
   netdiag http example.com --skip-tls`,
 	Args: cobra.ExactArgs(1),
@@ -37,8 +37,7 @@ Examples:
 			failUsage(err.Error())
 		}
 
-		reqTimeout := time.Duration(timeOut) * time.Second
-		requirePositiveDuration("--timeout", reqTimeout)
+		requirePositiveDuration("--timeout", httpTimeout)
 
 		// Normalize once so the request and the rendered table agree.
 		reqMethod := strings.ToUpper(strings.TrimSpace(method))
@@ -52,7 +51,7 @@ Examples:
 		prober := &probe.HTTPProber{
 			URL:           target,
 			Method:        reqMethod,
-			Timeout:       reqTimeout,
+			Timeout:       httpTimeout,
 			SkipTLSVerify: skipTLS,
 		}
 
@@ -135,17 +134,9 @@ func renderHTTP(result probe.Result) {
 	output.PrintTable(headers, rows)
 }
 
-// orDash renders empty strings as "-" so table cells never look truncated.
-func orDash(s string) string {
-	if s == "" {
-		return "-"
-	}
-	return s
-}
-
 func init() {
 	rootCmd.AddCommand(httpCmd)
-	httpCmd.Flags().IntVarP(&timeOut, "timeout", "t", 5, "Timeout for the request (seconds)")
+	httpCmd.Flags().DurationVarP(&httpTimeout, "timeout", "t", 5*time.Second, "Timeout for the request (e.g. 5s, 500ms)")
 	httpCmd.Flags().StringVarP(&method, "method", "m", "GET", "HTTP method for the request")
 	httpCmd.Flags().BoolVar(&skipTLS, "skip-tls", false, "Skip TLS certificate verification (insecure)")
 }

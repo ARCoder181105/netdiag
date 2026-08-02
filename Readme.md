@@ -385,14 +385,14 @@ Check HTTP status and SSL certificate information for a website.
 netdiag http <url>
 
 Flags:
-  -t, --timeout int     Timeout for the request in seconds (default: 5)
-  -m, --method string   HTTP method (default: "GET")
-      --skip-tls        Skip TLS certificate verification (insecure)
+  -t, --timeout duration   Timeout for the request, e.g. 5s, 500ms (default: 5s)
+  -m, --method string      HTTP method (default: "GET")
+      --skip-tls           Skip TLS certificate verification (insecure)
 
 Examples:
   netdiag http example.com
   netdiag http https://github.com
-  netdiag http https://expired.badssl.com --timeout 10
+  netdiag http https://expired.badssl.com --timeout 10s
 ```
 
 **Output**:

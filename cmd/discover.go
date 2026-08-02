@@ -63,7 +63,7 @@ func renderDiscover(result probe.Result) {
 	for _, dev := range data.Devices {
 		rows = append(rows, []string{
 			dev.IP,
-			dev.HostName,
+			orDash(dev.HostName),
 			dev.Latency.Round(time.Millisecond).String(),
 		})
 	}

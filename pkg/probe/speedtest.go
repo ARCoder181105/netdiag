@@ -38,7 +38,7 @@ func (s *SpeedTestProber) Probe(ctx context.Context) (Result, error) {
 		return fail("Failed to fetch user info: %v", err)
 	}
 
-	serverList, err := speedtest.FetchServers()
+	serverList, err := speedtest.FetchServerListContext(ctx)
 	if err != nil {
 		return fail("Failed to fetch server list: %v", err)
 	}

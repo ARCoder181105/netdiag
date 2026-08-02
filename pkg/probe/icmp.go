@@ -113,13 +113,19 @@ func permissionError() error {
 }
 
 func runPingerWith(ctx context.Context, host string, mode ICMPMode, configure func(*probing.Pinger)) (*probing.Statistics, error) {
-	pinger, err := probing.NewPinger(host)
-	if err != nil {
-		return nil, err
-	}
-
+	pinger := probing.New(host)
 	pinger.SetPrivileged(mode == ICMPPrivileged)
 	configure(pinger)
+
+	// NewPinger resolves during construction, before configure has a chance to
+	// set ResolveTimeout, which defaults to 0 (unbounded). Resolve explicitly
+	// here so a dead DNS server can't hang past the caller's Timeout.
+	if pinger.ResolveTimeout <= 0 {
+		pinger.ResolveTimeout = pinger.Timeout
+	}
+	if err := pinger.Resolve(); err != nil {
+		return nil, err
+	}
 
 	if err := pinger.RunWithContext(ctx); err != nil {
 		return nil, err
@@ -135,10 +141,7 @@ func isPrivilegeErr(err error) bool {
 // ResolveHost resolves host to an IP without sending any packets, so a name
 // failure can be reported distinctly from an unreachable host.
 func ResolveHost(host string, timeout time.Duration) (string, error) {
-	pinger, err := probing.NewPinger(host)
-	if err != nil {
-		return "", err
-	}
+	pinger := probing.New(host)
 	pinger.Timeout = timeout
 	pinger.ResolveTimeout = timeout
 	if err := pinger.Resolve(); err != nil {
