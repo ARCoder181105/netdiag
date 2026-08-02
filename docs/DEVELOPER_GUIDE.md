@@ -6,7 +6,7 @@ Welcome to the netdiag developer guide! This document will help you contribute t
 
 ### Prerequisites
 
-- Go 1.25 or higher
+- Go 1.24 or higher
 - Git
 - golangci-lint (optional, for linting)
 
@@ -46,10 +46,12 @@ make build
 make install
 
 # Run quick test
-make run-ping
+go run . ping google.com
 
-# Pre-commit checks (fmt + vet + lint + test)
-make pre-commit
+# Pre-commit checks. Note that `make fmt` and `make lint` both rewrite source
+# files (gofumpt/gci formatting, and golangci-lint --fix), so run them before
+# staging and review the result.
+make fmt && make lint && make test
 ```
 
 ## Architecture Overview
@@ -245,25 +247,30 @@ dlv debug -- ping google.com
 
 ## Release Process
 
-1. **Update version** in `main.go`:
-   ```go
-   var version = "0.2.0"
-   ```
+The version is **not** edited in source. `main.go` declares
+`version = "dev"` as a placeholder and the real value is injected at build time
+via `-ldflags -X main.version=...`.
 
-2. **Update CHANGELOG.md** with all changes
+- The **Makefile** defaults to `VERSION ?= dev`, so a local `make build` reports
+  `dev` unless you override it (`make build VERSION=v0.3.0`).
+- The **release workflow** derives the value from the pushed git tag, so only
+  released binaries carry a real version.
 
-3. **Commit changes**:
+1. **Update CHANGELOG.md** — move `[Unreleased]` entries under the new version
+   with today's date
+
+2. **Commit changes**:
    ```bash
-   git commit -am "Release v0.2.0"
+   git commit -am "chore: release v0.3.0"
    ```
 
-4. **Create and push tag**:
+3. **Create and push tag** — this is what sets the version:
    ```bash
-   git tag v0.2.0
-   git push origin v0.2.0
+   git tag v0.3.0
+   git push origin v0.3.0
    ```
 
-5. **GitHub Actions** will automatically:
+4. **GitHub Actions** will automatically:
    - Build binaries for all platforms
    - Generate checksums
    - Create a GitHub release

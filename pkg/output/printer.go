@@ -8,11 +8,19 @@ import (
 
 	"github.com/fatih/color"
 	"github.com/olekukonko/tablewriter"
+
+	"github.com/ARCoder181105/netdiag/pkg/probe"
 )
 
 // PrintError prints a message in red.
 func PrintError(msg string) {
 	color.Red(msg)
+}
+
+// PrintErrorLine prints a message in red on stderr, for diagnostics that must
+// not contaminate stdout when the caller asked for --json.
+func PrintErrorLine(msg string) {
+	_, _ = color.New(color.FgRed).Fprintln(os.Stderr, msg)
 }
 
 // PrintSuccess prints a message in green.
@@ -28,6 +36,24 @@ func PrintWarning(msg string) {
 // PrintInfo prints a message in cyan.
 func PrintInfo(msg string) {
 	color.Cyan(msg)
+}
+
+// PrintBySeverity prints msg in the color matching s.
+func PrintBySeverity(s probe.Severity, msg string) {
+	if msg == "" {
+		return
+	}
+
+	switch s {
+	case probe.SeverityOK:
+		PrintSuccess(msg)
+	case probe.SeverityWarning:
+		PrintWarning(msg)
+	case probe.SeverityError:
+		PrintError(msg)
+	default:
+		PrintInfo(msg)
+	}
 }
 
 // PrintTable renders a table with headers and rows

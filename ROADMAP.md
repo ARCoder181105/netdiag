@@ -4,13 +4,18 @@ This document outlines the full engineering transformation plan for netdiag — 
 
 ---
 
-## Current Version: 0.1.0
+## Current Version: 0.3.0
 
-Initial release. Core one-shot commands working: `ping`, `scan`, `trace`, `http`, `dig`, `whois`, `speedtest`, `discover`.
+Core one-shot commands working: `ping`, `scan`, `trace`, `http`, `dig`, `whois`, `speedtest`, `discover`.
+
+Phase 0 shipped in v0.2.0. v0.3.0 is a correctness and hardening release on top
+of it — no new phases. Phases 1–6 below are **not started**; every command,
+flag, metric, and output sample in them describes intended future work, not
+current behaviour.
 
 ---
 
-## 🟩 Phase 0 — Foundation Hardening `v0.2.0`
+## ✅ Phase 0 — Foundation Hardening `v0.2.0` — SHIPPED
 
 > **Goal:** Establish the architectural base everything else builds on. No new features visible to users — but every later phase depends on this.
 
@@ -29,7 +34,7 @@ Initial release. Core one-shot commands working: `ping`, `scan`, `trace`, `http`
 
 ---
 
-## 🟨 Phase 1 — Systems Engineer: Observability & Daemons `v0.3.0`
+## 🟨 Phase 1 — Systems Engineer: Observability & Daemons `v0.4.0`
 
 > **Goal:** Prove you can build long-running, production-ready services.
 
@@ -55,7 +60,7 @@ netdiag monitor --target google.com --webhook https://hooks.slack.com/...
 
 ---
 
-## 🟦 Phase 2 — Frontend Engineer: TUI Dashboard `v0.4.0`
+## 🟦 Phase 2 — Frontend Engineer: TUI Dashboard `v0.5.0`
 
 > **Goal:** Build a "wow factor" interface that proves you understand complex, event-driven architecture.
 
@@ -98,7 +103,7 @@ netdiag dashboard --target google.com --target 1.1.1.1 --target github.com
 
 ---
 
-## 🟧 Phase 3 — Low-Level Engineer: Raw Socket SYN Scanner `v0.5.0`
+## 🟧 Phase 3 — Low-Level Engineer: Raw Socket SYN Scanner `v0.6.0`
 
 > **Goal:** Solve a hard technical problem with a measurable, benchmarkable result.
 
@@ -113,19 +118,24 @@ netdiag scan 192.168.1.1 -p 1-1024  --benchmark     # compare both methods
 
 Current `net.DialTimeout("tcp", ...)` completes a full 3-way TCP handshake per port — wasteful, slow, and leaves connection logs on the target. A SYN scan sends only the initial SYN packet and reads the response (SYN-ACK = open, RST = closed) — never completing the handshake.
 
-### What's Built
+### Planned deliverables
 
-- **`pkg/probe/syn_scanner.go`** — Raw TCP SYN packet crafting using `google/gopacket`. Manually computes TCP checksums. Requires `cap_net_raw` or root.
-- **Adaptive concurrency** — Semaphore that backs off when packet loss is detected (reduces concurrency on congestion, ramps up on clean network).
-- **Benchmark mode** — Runs both methods against the same target and prints a comparison table.
-- **Fallback** — Automatically falls back to connect scan if raw socket creation fails (no privileges).
+- **`pkg/probe/syn_scanner.go`** — will do raw TCP SYN packet crafting using `google/gopacket`, manually computing TCP checksums. Will require `cap_net_raw` or root.
+- **Adaptive concurrency** — a semaphore that backs off when packet loss is detected (reduces concurrency on congestion, ramps up on clean network).
+- **Benchmark mode** — will run both methods against the same target and print a comparison table.
+- **Fallback** — will automatically fall back to connect scan if raw socket creation fails (no privileges).
 
-### Benchmark Result (localhost, ports 1-65535)
+### Target (illustrative — not measured)
 
-| Method       | Time  | Ports/sec | Speedup  |
-| ------------ | ----- | --------- | -------- |
-| Connect scan | 41.2s | 1,590     | 1x       |
-| SYN scan     | 0.89s | 73,600    | **~46x** |
+> ⚠️ The SYN scanner does not exist yet. The numbers below are the order of
+> magnitude this phase aims for, based on published results for other SYN
+> scanners. They are **not** measurements of netdiag. This table gets replaced
+> with real, reproducible numbers from `docs/performance.md` when Phase 3 ships.
+
+| Method       | Time  | Ports/sec | Speedup |
+| ------------ | ----- | --------- | ------- |
+| Connect scan | ~40s  | ~1,600    | 1x      |
+| SYN scan     | ~1s   | ~70,000   | ~40x    |
 
 ### Deliverable
 
@@ -133,7 +143,7 @@ Current `net.DialTimeout("tcp", ...)` completes a full 3-way TCP handshake per p
 
 ---
 
-## 🟥 Phase 4 — Data Engineer: Persistence & Analytics `v0.6.0`
+## 🟥 Phase 4 — Data Engineer: Persistence & Analytics `v0.7.0`
 
 > **Goal:** Demonstrate data modeling, time-series queries, and statistical analysis.
 
@@ -175,7 +185,7 @@ Network Health Report — Last 24 Hours
 
 ---
 
-## 🔵 Phase 5 — Distributed Systems: Agent Mode `v0.7.0`
+## 🔵 Phase 5 — Distributed Systems: Agent Mode `v0.8.0`
 
 > **Goal:** Multi-region latency monitoring via gRPC — the feature that separates "side project" from "distributed systems experience."
 
@@ -230,15 +240,16 @@ Three `netdiag agent` instances running in different regions, with `netdiag dash
 
 | Version  | Phase   | Key Feature                                              |
 | -------- | ------- | -------------------------------------------------------- |
-| `v0.1.0` | —       | Initial release, all one-shot commands                   |
-| `v0.2.0` | Phase 0 | `pkg/probe/` refactor, JSON output, config file, tests   |
-| `v0.3.0` | Phase 1 | `monitor` daemon, Prometheus metrics, alerting           |
-| `v0.4.0` | Phase 2 | `dashboard` TUI with sparklines                          |
-| `v0.5.0` | Phase 3 | SYN scanner, `--fast` flag, benchmarks                   |
-| `v0.6.0` | Phase 4 | SQLite persistence, `analyze` command, anomaly detection |
-| `v0.7.0` | Phase 5 | gRPC agent mode, multi-region dashboard                  |
+| `v0.1.0` | —       | Initial release, all one-shot commands ✅                 |
+| `v0.2.0` | Phase 0 | `pkg/probe/` refactor, JSON output, config file, tests ✅ |
+| `v0.3.0` | —       | Correctness + hardening: exit codes, signals, real tests ✅ |
+| `v0.4.0` | Phase 1 | `monitor` daemon, Prometheus metrics, alerting           |
+| `v0.5.0` | Phase 2 | `dashboard` TUI with sparklines                          |
+| `v0.6.0` | Phase 3 | SYN scanner, `--fast` flag, benchmarks                   |
+| `v0.7.0` | Phase 4 | SQLite persistence, `analyze` command, anomaly detection |
+| `v0.8.0` | Phase 5 | gRPC agent mode, multi-region dashboard                  |
 | `v1.0.0` | Phase 6 | Docker, Grafana, demo GIF, full documentation            |
 
 ---
 
-**Last Updated:** 2026-02-26
+**Last Updated:** 2026-08-01

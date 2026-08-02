@@ -11,6 +11,10 @@ linters:
     - staticcheck
     - unused
     - misspell
+    # Each of these catches a class of bug that shipped in v0.2.1:
+    - bodyclose   # HTTP response bodies closed but never drained
+    - errorlint   # error comparisons that break through %w wrapping
+    - noctx       # requests issued without a context
 
 linters-settings:
   errcheck:

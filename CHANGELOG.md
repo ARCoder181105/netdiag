@@ -7,6 +7,143 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Changed
+
+- **Breaking:** `discover --timeout` now takes a duration (`-t 500ms`, `-t 1s`)
+  instead of an integer count of milliseconds, matching every other command.
+- **Breaking:** `http --timeout` now takes a duration (`-t 10s`) instead of an
+  integer count of seconds, matching every other command.
+
+### Added
+
+- `http --json` output includes a `method` field.
+
+### Fixed
+
+- `ping --timeout` default raised from 1s to 5s. pro-bing's timeout bounds the
+  whole run, not a single packet, so the old default cut the default 3-packet
+  run short and reported false loss on healthy hosts.
+- `dig` and `scan` now reject a non-positive `--timeout` like every other
+  command.
+- Traceroute setup failures report the underlying socket error instead of
+  always claiming a privilege problem.
+- A truncated `discover` sweep that found no devices now says only the scanned
+  subset was covered, instead of claiming the whole network is empty.
+- `netdiag` no longer prints its own top-level error a second time after
+  Cobra already reported it.
+
+## [0.3.0] - 2026-08-01
+
+Correctness, consistency and production-hardening release. No new commands.
+
+### Fixed
+
+- **`ping` and `discover` no longer require root.** Both hardcoded
+  `SetPrivileged(true)`, so they failed for anyone without `CAP_NET_RAW` —
+  which is the default state of a `go install`ed binary on Linux.
+  `pkg/probe/icmp.go` now picks the socket type most likely to work on the
+  platform, retries with the other on a permission error, and caches the
+  result. When neither works, the error explains how to fix it instead of
+  reporting a bare `socket: permission denied`.
+- **`trace` no longer attributes other processes' ICMP packets to its own
+  hops.** The echo ID was hardcoded to `1234` and any inbound ICMP packet was
+  accepted as the current hop's reply. Probes are now identified by PID, and
+  replies are matched on ID and sequence — including the quoted original header
+  inside `TimeExceeded` messages.
+- **`trace` reports a real severity.** It previously always returned
+  `SeverityOK`, even when no hop responded at all.
+- **`discover` handles non-/24 networks.** The local network was derived by
+  slicing the IP string at the last dot and sweeping `1..254`, ignoring the
+  actual netmask. It now enumerates hosts from the interface's `*net.IPNet`,
+  capped at 1024 addresses.
+- **`scan` reports a real throughput.** `ScanRateMs` used integer division of
+  ports by elapsed milliseconds, so any scan slower than one port per
+  millisecond reported `0`. Replaced by `ports_per_sec` (float).
+- **`scan` no longer reports `SeverityOK` when it finds nothing**, matching how
+  `dig` and `discover` already treated empty results.
+- **`whois` and `speedtest` respect cancellation.** Both ignored the context
+  entirely, so Ctrl+C did nothing. `speedtest` now uses the library's
+  `*Context` methods; `whois` runs against the context with a real timeout.
+- **`speedtest` shows the ISP name.** It rendered `user.String()`, dumping the
+  whole struct into the ISP column.
+- **HTTP response bodies are drained before closing**, and an expired
+  certificate is now an error rather than a success with `tls_valid: false`.
+- **Failed probes report their latency.** Most soft-failure paths left
+  `Latency` at zero in JSON output.
+- **`--json` is honored on every error path.** `trace` and `whois` printed
+  plain text when a probe failed hard.
+- **Progress banners print before the work, not after.** `discover` and `dig`
+  announced what they were about to do once it had already finished.
+
+### Added
+
+- **Exit codes**: `0` the probe ran and the target is healthy — degraded but
+  alive targets (severity Warning) also exit `0` so they do not break a
+  pipeline; `1` the probe ran and the target failed (severity Error); `2` usage
+  error; `3` the probe itself could not run. Every command previously exited
+  `0` unconditionally, which made netdiag unusable in scripts and CI.
+- **Signal handling**: `Ctrl+C`/`SIGTERM` cancels an in-flight probe. All
+  commands previously used `context.Background()`.
+- **Input validation at the CLI boundary.** `ParsePortRange` now returns an
+  error naming the offending token instead of silently skipping it — `--ports
+  "abc,80"` used to scan one port and report success. URLs are validated and
+  their scheme checked; DNS record types, host arguments, `--max-hops` and
+  `--concurrency` are validated before a prober is built.
+- `--log-level` flag. `pkg/logger` accepted a level parameter that `Init`
+  always hardcoded to `info`.
+- `dig AAAA` for IPv6 address lookups.
+- `whois --timeout`.
+- `SECURITY.md` with a vulnerability reporting process and scope.
+- `.github/dependabot.yml` for Go modules and GitHub Actions.
+- `make test-cover` and `make tidy`, both already referenced by the developer
+  guide but absent from the Makefile.
+- `bodyclose`, `errorlint` and `noctx` linters — each catches a class of bug
+  found in this release.
+
+### Changed
+
+- **7 of 8 commands now share one execution path** (`cmd/run.go`). The same
+  ~40-line block — build prober, run, synthesize an error result, log, handle
+  `--json`, switch on severity — had been copy-pasted per command and had
+  drifted. Commands are now flag parsing, validation, and table rendering only.
+  `ping` targets multiple hosts and reuses the same logging/exit helpers
+  around a batch loop instead of calling `runProbe` directly.
+- `probe.ErrorResult` and `output.PrintBySeverity` replace six copies each of
+  the same inline logic.
+- Builds use `-trimpath` and `CGO_ENABLED=0`; `make fmt` pins its tool
+  versions; the release workflow uses a single timestamp across all artifacts.
+- CI lint no longer runs with `--fix`, which discarded its own fixes and let
+  the job pass on issues a plain run would fail.
+- Config now contains only keys a command actually reads. The `monitor`,
+  `database` and `metrics` sections were inert and are deferred to the phases
+  that will consume them.
+- Logs go to stderr by default, or to the file given via `--log-file`; either
+  way `--json | jq` works with logging enabled.
+
+### Removed
+
+- `Result.IsAnomaly()` — an unused Phase 4 stub with no callers.
+
+### Documentation
+
+- README: corrected the Go version (1.24, not 1.25), documented six flags that
+  existed but were undocumented (`scan -c`, `http --skip-tls`, `trace -t`,
+  `dig -s/-t`, and the global logging flags), fixed the ping `--timeout` and
+  `--interval` types (durations, not ints), and added Global Flags, Exit Codes,
+  Responsible Use, and Configuration sections.
+- README: removed the Homebrew install instructions. The formula is pinned to
+  v0.1.0 with placeholder checksums and cannot work.
+- README: rewrote "Architecture & Concepts", which still described the
+  pre-`pkg/probe` layout with inline code samples.
+- README and CONTRIBUTING: dropped `--json`, config file support and custom DNS
+  servers from the "wanted features" lists — all three shipped in v0.2.0.
+- ROADMAP/MASTERPLAN/Plan: the SYN scanner benchmark tables were presented as
+  measured results for code that does not exist, in three mutually
+  inconsistent versions. They are now clearly marked as targets.
+- CONTRIBUTING: fixed find/replace damage that broke a copy-pasteable git
+  command, refreshed the project structure, and added a commit authorship
+  policy.
+
 ## [0.2.1] - 2026-03-07
 
 ### Fixed
@@ -42,7 +179,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Changed
 
 - All `cmd/` files now consistently use `logger.Log` for structured output
-  alongside the existing `output.Print*` colour functions. The `--log-file`
+  alongside the existing `output.Print*` color functions. The `--log-file`
   and `--log-format` flags now capture output from every command, not just
   `ping`.
 
@@ -72,7 +209,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## Release Process
 
 1. Update this CHANGELOG.md with all changes since last release
-2. Update version in main.go
-3. Commit changes: `git commit -am "Release vX.Y.Z"`
-4. Create and push tag: `git tag vX.Y.Z && git push origin vX.Y.Z`
-5. GitHub Actions will automatically build and publish the release
+2. Commit changes: `git commit -am "chore: release vX.Y.Z"`
+3. Create and push tag: `git tag vX.Y.Z && git push origin vX.Y.Z`
+4. GitHub Actions will automatically build and publish the release
+
+The version is injected from the git tag at build time via `-ldflags`; there is
+no version string to edit in source.

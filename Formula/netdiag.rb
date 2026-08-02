@@ -1,3 +1,12 @@
+# NOT PUBLISHED YET.
+#
+# This formula is a template. Before it can be used:
+#   1. Create a tap repository named `homebrew-netdiag` under the same owner.
+#   2. Bump `version` and the four release URLs to the target tag.
+#   3. Replace every PLACEHOLDER_SHA256_* with the real value from the
+#      release's checksums.txt.
+#
+# The README deliberately does not advertise `brew install` until that is done.
 class Netdiag < Formula
   desc "Powerful, unified network diagnostic CLI tool"
   homepage "https://github.com/ARCoder181105/netdiag"

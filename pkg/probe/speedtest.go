@@ -21,128 +21,75 @@ func (s *SpeedTestProber) Type() string {
 func (s *SpeedTestProber) Probe(ctx context.Context) (Result, error) {
 	start := time.Now()
 
-	// Fetch user info
-	user, err := speedtest.FetchUserInfo()
-	if err != nil {
+	fail := func(format string, args ...any) (Result, error) {
 		return Result{
 			TimeStamp: time.Now(),
 			ProbeType: "speedtest",
 			Target:    "internet",
 			Success:   false,
 			Severity:  SeverityError,
-			Message:   fmt.Sprintf("Failed to fetch user info: %v", err),
+			Message:   fmt.Sprintf(format, args...),
+			Latency:   time.Since(start),
 		}, nil
 	}
 
-	// Fetch servers
-	serverList, err := speedtest.FetchServers()
+	user, err := speedtest.FetchUserInfoContext(ctx)
 	if err != nil {
-		return Result{
-			TimeStamp: time.Now(),
-			ProbeType: "speedtest",
-			Target:    "internet",
-			Success:   false,
-			Severity:  SeverityError,
-			Message:   fmt.Sprintf("Failed to fetch server list: %v", err),
-		}, nil
+		return fail("Failed to fetch user info: %v", err)
 	}
 
-	var targets speedtest.Servers
+	serverList, err := speedtest.FetchServerListContext(ctx)
+	if err != nil {
+		return fail("Failed to fetch server list: %v", err)
+	}
 
+	var ids []int
 	if s.ServerID != "" {
 		id, convErr := strconv.Atoi(s.ServerID)
 		if convErr != nil {
-			return Result{
-				TimeStamp: time.Now(),
-				ProbeType: "speedtest",
-				Target:    "internet",
-				Success:   false,
-				Severity:  SeverityError,
-				Message:   "Invalid server ID format",
-			}, nil
+			return fail("Invalid server ID %q: must be a number", s.ServerID)
 		}
+		ids = []int{id}
+	}
 
-		targets, err = serverList.FindServer([]int{id})
-		if err != nil || len(targets) == 0 {
-			return Result{
-				TimeStamp: time.Now(),
-				ProbeType: "speedtest",
-				Target:    "internet",
-				Success:   false,
-				Severity:  SeverityError,
-				Message:   "Server not found",
-			}, nil
+	targets, err := serverList.FindServer(ids)
+	if err != nil {
+		return fail("Failed to select a speedtest server: %v", err)
+	}
+	if len(targets) == 0 {
+		if s.ServerID != "" {
+			return fail("Server %s not found", s.ServerID)
 		}
-	} else {
-		targets, err = serverList.FindServer([]int{})
-		if err != nil || len(targets) == 0 {
-			return Result{
-				TimeStamp: time.Now(),
-				ProbeType: "speedtest",
-				Target:    "internet",
-				Success:   false,
-				Severity:  SeverityError,
-				Message:   "No servers found",
-			}, nil
-		}
+		return fail("No speedtest servers found")
 	}
 
 	target := targets[0]
 
-	// Ping
-	if err := target.PingTest(nil); err != nil {
-		return Result{
-			TimeStamp: time.Now(),
-			ProbeType: "speedtest",
-			Target:    "internet",
-			Success:   false,
-			Severity:  SeverityError,
-			Message:   fmt.Sprintf("Ping test failed: %v", err),
-		}, nil
+	if err := target.PingTestContext(ctx, nil); err != nil {
+		return fail("Ping test failed: %v", err)
 	}
 
-	// Download
-	if err := target.DownloadTest(); err != nil {
-		return Result{
-			TimeStamp: time.Now(),
-			ProbeType: "speedtest",
-			Target:    "internet",
-			Success:   false,
-			Severity:  SeverityError,
-			Message:   fmt.Sprintf("Download test failed: %v", err),
-		}, nil
+	if err := target.DownloadTestContext(ctx); err != nil {
+		return fail("Download test failed: %v", err)
 	}
 
-	// Upload (optional)
-	if !s.NoUpload {
-		if err := target.UploadTest(); err != nil {
-			return Result{
-				TimeStamp: time.Now(),
-				ProbeType: "speedtest",
-				Target:    "internet",
-				Success:   false,
-				Severity:  SeverityError,
-				Message:   fmt.Sprintf("Upload test failed: %v", err),
-			}, nil
-		}
-	}
-
-	// Convert to Mbps
-	downloadMbps := (float64(target.DLSpeed) * 8) / 1_000_000
 	uploadMbps := 0.0
 	if !s.NoUpload {
-		uploadMbps = (float64(target.ULSpeed) * 8) / 1_000_000
+		if err := target.UploadTestContext(ctx); err != nil {
+			return fail("Upload test failed: %v", err)
+		}
+		uploadMbps = toMbps(float64(target.ULSpeed))
 	}
 
 	data := &SpeedTestData{
-		ISP:          user.String(),
+		ISP:          user.Isp,
 		PublicIP:     user.IP,
 		ServerName:   target.Name,
 		Country:      target.Country,
 		Sponsor:      target.Sponsor,
 		DistanceKm:   target.Distance,
-		PingMs:       float64(target.Latency.Milliseconds()),
-		DownloadMbps: downloadMbps,
+		PingMs:       float64(target.Latency.Microseconds()) / 1000.0,
+		DownloadMbps: toMbps(float64(target.DLSpeed)),
 		UploadMbps:   uploadMbps,
 	}
 
@@ -156,4 +103,9 @@ func (s *SpeedTestProber) Probe(ctx context.Context) (Result, error) {
 		Message:       "Speed test completed successfully",
 		Latency:       time.Since(start),
 	}, nil
+}
+
+// toMbps converts bytes per second to megabits per second.
+func toMbps(bytesPerSec float64) float64 {
+	return (bytesPerSec * 8) / 1_000_000
 }

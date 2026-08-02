@@ -73,10 +73,10 @@ type PingData struct {
 
 // ScanData contains information about a port scan probe.
 type ScanData struct {
-	ScanRateMs int64  `json:"scan_rate_ms"`
-	TotalPorts int    `json:"total_ports"`
-	OpenPorts  []int  `json:"open_ports"`
-	ScanMethod string `json:"scan_method"`
+	PortsPerSec float64 `json:"ports_per_sec"`
+	TotalPorts  int     `json:"total_ports"`
+	OpenPorts   []int   `json:"open_ports"`
+	ScanMethod  string  `json:"scan_method"`
 }
 
 // DiscoverDevice represents a single active device found on the network.
@@ -125,6 +125,7 @@ type DNSData struct {
 
 // HTTPData contains the results of an HTTP probe.
 type HTTPData struct {
+	Method        string        `json:"method"`
 	TLSIssuer     string        `json:"tls_issuer"`
 	Latency       time.Duration `json:"latency"`
 	ContentLength int64         `json:"content_length"`
@@ -132,6 +133,14 @@ type HTTPData struct {
 	TLSDaysLeft   int           `json:"tls_days_left"`
 	Redirects     int           `json:"redirects"`
 	TLSValid      bool          `json:"tls_valid"`
+	// TLSChecked reports that a peer certificate was actually inspected. It is
+	// false for plain HTTP and for resumed sessions that carry no peer chain,
+	// so TLSValid == false does not by itself mean the certificate expired.
+	TLSChecked bool `json:"tls_checked"`
+	// TLSVerifySkipped reports that certificate verification was disabled via
+	// --skip-tls, which makes TLSValid (when TLSChecked) a statement about the
+	// expiry date only.
+	TLSVerifySkipped bool `json:"tls_verify_skipped"`
 }
 
 // SpeedTestData contains the results of an internet speed test.
@@ -153,9 +162,16 @@ type Prober interface {
 	Type() string
 }
 
-// IsAnomaly returns true if the probe result indicates an anomalous state.
-// This is a stub for Phase 4 (Anomaly Detection & Notifications).
-func (r *Result) IsAnomaly() bool {
-	// Simple heuristic for now: anything that isn't OK or failed entirely.
-	return r.Severity == SeverityWarning || r.Severity == SeverityError || !r.Success
+// ErrorResult builds the Result used when a probe returns a hard error rather
+// than a populated Result. Every command funnels failures through here so the
+// shape of a failed probe is identical across probe types.
+func ErrorResult(probeType, target string, err error) Result {
+	return Result{
+		TimeStamp: time.Now(),
+		ProbeType: probeType,
+		Target:    target,
+		Success:   false,
+		Severity:  SeverityError,
+		Message:   err.Error(),
+	}
 }

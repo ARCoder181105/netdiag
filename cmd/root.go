@@ -1,7 +1,3 @@
-/*
-Copyright © 2026 ARCoder181105 <EMAIL ADDRESS>
-*/
-
 // Package cmd implements the CLI commands.
 package cmd
 
@@ -9,9 +5,10 @@ import (
 	"fmt"
 	"os"
 
+	"github.com/spf13/cobra"
+
 	"github.com/ARCoder181105/netdiag/pkg/config"
 	"github.com/ARCoder181105/netdiag/pkg/logger"
-	"github.com/spf13/cobra"
 )
 
 // Variables to store flag values
@@ -19,6 +16,7 @@ var (
 	jsonOutput  bool
 	logFilePath string
 	logFormat   string
+	logLevel    string
 	showVersion bool
 )
 
@@ -41,10 +39,20 @@ var rootCmd = &cobra.Command{
 	Use:   "netdiag",
 	Short: "Network diagnostics and monitoring CLI tool",
 	Long: `netdiag is a developer-friendly CLI tool used for
-network diagnostics, monitoring, and debugging.`,
+network diagnostics, monitoring, and debugging.
+
+Exit codes:
+  0  the probe ran and the target is up (severity OK or Warning)
+  1  the probe ran and the target failed (severity Error)
+  2  invalid arguments, flags, or configuration
+  3  the probe could not run
+
+Warnings exit 0 by design, so a degraded-but-alive target does not break a
+pipeline. Check the "severity" field in --json output to act on warnings.`,
+	SilenceUsage: true,
 	// Wire Viper and Logger into PersistentPreRun
-	PersistentPreRunE: func(cmd *cobra.Command, args []string) error {
-		if err := logger.Init(logFilePath, logFormat); err != nil {
+	PersistentPreRunE: func(_ *cobra.Command, _ []string) error {
+		if err := logger.Init(logFilePath, logFormat, logLevel); err != nil {
 			return fmt.Errorf("failed to initialize logger: %w", err)
 		}
 		if err := config.Load(); err != nil {
@@ -65,15 +73,18 @@ network diagnostics, monitoring, and debugging.`,
 
 // Execute adds all child commands to the root command and sets flags appropriately.
 func Execute() {
-	err := rootCmd.Execute()
-	if err != nil {
-		os.Exit(1)
+	if err := rootCmd.Execute(); err != nil {
+		if rootCmd.SilenceErrors {
+			fmt.Fprintln(os.Stderr, "Error:", err)
+		}
+		os.Exit(exitUsage)
 	}
 }
 
 func init() {
-	rootCmd.PersistentFlags().BoolVarP(&jsonOutput, "json", "j", false, "Output JSON format")
-	rootCmd.PersistentFlags().StringVarP(&logFilePath, "log-file", "l", "", "Path to the log file")
-	rootCmd.PersistentFlags().StringVar(&logFormat, "log-format", "text", "Log format (text or json)")
+	rootCmd.PersistentFlags().BoolVarP(&jsonOutput, "json", "j", false, "Output machine-readable JSON instead of tables")
+	rootCmd.PersistentFlags().StringVarP(&logFilePath, "log-file", "l", "", "Append structured logs to this file instead of stderr")
+	rootCmd.PersistentFlags().StringVar(&logFormat, "log-format", "text", "Log format: text or json")
+	rootCmd.PersistentFlags().StringVar(&logLevel, "log-level", "info", "Log level: debug, info, warn, or error")
 	rootCmd.Flags().BoolVarP(&showVersion, "version", "v", false, "Show version information")
 }

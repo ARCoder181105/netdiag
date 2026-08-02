@@ -32,14 +32,24 @@ jobs:
       - name: Build binaries
         env:
           VERSION: ${{ steps.get_version.outputs.VERSION }}
+          CGO_ENABLED: "0"
         run: |
           mkdir -p dist
 
-          GOOS=linux   GOARCH=amd64 go build -ldflags="-s -w -X main.version=${VERSION} -X main.commit=${GITHUB_SHA} -X main.date=$(date -u +%Y-%m-%dT%H:%M:%SZ)" -o dist/netdiag-linux-amd64 .
-          GOOS=linux   GOARCH=arm64 go build -ldflags="-s -w -X main.version=${VERSION} -X main.commit=${GITHUB_SHA} -X main.date=$(date -u +%Y-%m-%dT%H:%M:%SZ)" -o dist/netdiag-linux-arm64 .
-          GOOS=darwin  GOARCH=amd64 go build -ldflags="-s -w -X main.version=${VERSION} -X main.commit=${GITHUB_SHA} -X main.date=$(date -u +%Y-%m-%dT%H:%M:%SZ)" -o dist/netdiag-darwin-amd64 .
-          GOOS=darwin  GOARCH=arm64 go build -ldflags="-s -w -X main.version=${VERSION} -X main.commit=${GITHUB_SHA} -X main.date=$(date -u +%Y-%m-%dT%H:%M:%SZ)" -o dist/netdiag-darwin-arm64 .
-          GOOS=windows GOARCH=amd64 go build -ldflags="-s -w -X main.version=${VERSION} -X main.commit=${GITHUB_SHA} -X main.date=$(date -u +%Y-%m-%dT%H:%M:%SZ)" -o dist/netdiag-windows-amd64.exe .
+          # Derived from the tagged commit, not from the clock, so rebuilding
+          # the same tag produces byte-identical binaries.
+          BUILD_DATE=$(git show -s --format=%cI "${GITHUB_SHA}")
+          LDFLAGS="-s -w -X main.version=${VERSION} -X main.commit=${GITHUB_SHA} -X main.date=${BUILD_DATE}"
+
+          build() {
+            GOOS=$1 GOARCH=$2 go build -trimpath -ldflags="${LDFLAGS}" -o "dist/$3" .
+          }
+
+          build linux   amd64 netdiag-linux-amd64
+          build linux   arm64 netdiag-linux-arm64
+          build darwin  amd64 netdiag-darwin-amd64
+          build darwin  arm64 netdiag-darwin-arm64
+          build windows amd64 netdiag-windows-amd64.exe
 
       - name: Generate checksums
         working-directory: dist
@@ -48,7 +58,7 @@ jobs:
           cat checksums.txt
 
       - name: Create Release
-        uses: softprops/action-gh-release@v1
+        uses: softprops/action-gh-release@v2
         with:
           files: |
             dist/netdiag-linux-amd64

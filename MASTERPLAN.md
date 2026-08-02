@@ -1,5 +1,12 @@
 # netdiag — Senior-Level Portfolio Transformation Plan
 
+> ⚠️ **Status: aspirational design document, not a description of the code.**
+> Written at v0.1.x (January 2026). Phase 0 shipped in v0.2.0; v0.3.0 added
+> correctness and hardening work. **Phases 1–6 are not implemented.** The
+> "Current State Audit" below reflects v0.1.x and is superseded by the README.
+> All benchmark tables here are illustrative targets, **not measurements**.
+> See [ROADMAP.md](ROADMAP.md) for current status.
+>
 > A complete engineering roadmap to turn `netdiag` into a production-grade, interview-ready showcase
 
 ---
@@ -162,7 +169,7 @@ type Result struct {
     // Identity
     ProbeType  string    `json:"probe_type"`   // "ping", "scan", "http", etc.
     Target     string    `json:"target"`
-    Timestamp  time.Time `json:"timestamp"`
+    TimeStamp  time.Time `json:"timestamp"`
 
     // Outcome
     Severity   Severity  `json:"severity"`
@@ -879,16 +886,16 @@ netdiag scan 192.168.1.1 -p 1-1024 --fast
 netdiag scan 192.168.1.1 -p 1-1024 --benchmark
 ```
 
-**Benchmark output:**
+**Benchmark output format** (values shown are placeholders):
 
-```
+```text
 Port Scan Benchmark: 192.168.1.1 (ports 1-1024)
 ═══════════════════════════════════════════════════
 Method         Time      Rate           Speedup
-Connect scan   8.3s      123 ports/sec  1x (baseline)
-SYN scan       0.21s     4876 ports/sec 39.6x faster
+Connect scan   <t>       <r> ports/sec  1x (baseline)
+SYN scan       <t>       <r> ports/sec  <n>x faster
 ═══════════════════════════════════════════════════
-Open ports found: [22, 80, 443, 8080] (identical results ✓)
+Open ports found: [...] (both methods must agree)
 ```
 
 ### 3.5 — Adaptive Concurrency
@@ -1233,14 +1240,16 @@ Benchmark environment:
 
 ## Results
 
-| Method        | Time  | Ports/sec | Memory | CPU |
-| ------------- | ----- | --------- | ------ | --- |
-| Connect (100) | 41.2s | 1,590     | 12MB   | 8%  |
-| Connect (500) | 9.8s  | 6,688     | 28MB   | 35% |
-| SYN (500)     | 0.89s | 73,600    | 8MB    | 12% |
-| SYN (2000)    | 0.24s | 272,000   | 9MB    | 18% |
+<!-- Fill this table in from an actual benchmark run. Do not ship invented
+     numbers: the whole point of this document is that the figures are
+     reproducible on the stated hardware. -->
 
-SYN scan is **46x faster** at equivalent concurrency, with **lower** CPU and memory.
+| Method        | Time | Ports/sec | Memory | CPU |
+| ------------- | ---- | --------- | ------ | --- |
+| Connect (100) | TBD  | TBD       | TBD    | TBD |
+| Connect (500) | TBD  | TBD       | TBD    | TBD |
+| SYN (500)     | TBD  | TBD       | TBD    | TBD |
+| SYN (2000)    | TBD  | TBD       | TBD    | TBD |
 
 ## Why
 
@@ -1408,7 +1417,7 @@ The README needs a complete rewrite to lead with **what this demonstrates**, not
 | **Daemon patterns**        | `monitor` command with `time.Ticker`, graceful `signal.NotifyContext` shutdown |
 | **Prometheus/Grafana**     | Embedded metrics server, 12 custom metrics, production Grafana dashboard       |
 | **TUI architecture**       | Bubbletea Elm-architecture with concurrent background workers                  |
-| **Raw socket programming** | SYN scanner using `gopacket` — 46x faster than `net.Dial`                      |
+| **Raw socket programming** | SYN scanner using `gopacket` — cite your own measured speedup here             |
 | **Time-series DB**         | Embedded SQLite with percentile queries and Z-score anomaly detection          |
 | **gRPC**                   | Distributed agent mode for multi-region latency monitoring                     |
 | **Concurrency**            | errgroup, adaptive semaphores, ring buffers, lock-free atomics                 |
@@ -1421,7 +1430,7 @@ The README needs a complete rewrite to lead with **what this demonstrates**, not
 | Package                                    | Version | Purpose                  | Phase    |
 | ------------------------------------------ | ------- | ------------------------ | -------- |
 | `github.com/spf13/cobra`                   | current | CLI framework            | existing |
-| `github.com/spf13/viper`                   | v1.18   | Config file              | Phase 0  |
+| `github.com/spf13/viper`                   | v1.21   | Config file              | Phase 0  |
 | `github.com/prometheus-community/pro-bing` | current | ICMP ping                | existing |
 | `github.com/prometheus/client_golang`      | v1.20   | Prometheus metrics       | Phase 1  |
 | `github.com/charmbracelet/bubbletea`       | v1.1    | TUI framework            | Phase 2  |
@@ -1570,7 +1579,7 @@ netdiag/
 
 ### Phase 3 (SYN Scanner)
 
-> _"The connect scan was completing a full TCP handshake per port — that's three round trips and a connection teardown. The SYN scanner sends a single crafted packet and listens for SYN-ACK. I benchmarked 46x speedup on localhost. The tricky part was computing the TCP checksum manually — the kernel requires it even for raw sockets."_
+> _"The connect scan was completing a full TCP handshake per port — that's three round trips and a connection teardown. The SYN scanner sends a single crafted packet and listens for SYN-ACK. I will benchmark it on localhost and quote the measured speedup. The tricky part was computing the TCP checksum manually — the kernel requires it even for raw sockets."_
 
 ### Phase 4 (SQLite/Analytics)
 

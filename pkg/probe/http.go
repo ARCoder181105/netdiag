@@ -4,9 +4,14 @@ import (
 	"context"
 	"crypto/tls"
 	"fmt"
+	"io"
 	"net/http"
 	"time"
 )
+
+// maxDrainBytes caps how much of a response body is read purely to allow
+// connection reuse.
+const maxDrainBytes = 64 << 10
 
 type HTTPProber struct {
 	URL           string
@@ -55,9 +60,15 @@ func (h *HTTPProber) Probe(ctx context.Context) (Result, error) {
 			Message:   err.Error(),
 			Severity:  SeverityError,
 			Success:   false,
+			Latency:   time.Since(startTime),
 		}, nil
 	}
-	defer resp.Body.Close()
+	defer func() { _ = resp.Body.Close() }()
+
+	// Partially drain the body so the connection can be returned to the pool.
+	// Bounded: this is a reachability check, and reading a multi-gigabyte body
+	// would be charged to the reported latency.
+	_, _ = io.Copy(io.Discard, io.LimitReader(resp.Body, maxDrainBytes))
 
 	latency := time.Since(startTime)
 
@@ -66,23 +77,27 @@ func (h *HTTPProber) Probe(ctx context.Context) (Result, error) {
 
 	var tlsIssuer string
 	var tlsDaysLeft int
-	var tlsValid bool
+	var tlsValid, certChecked bool
 
 	if resp.TLS != nil && len(resp.TLS.PeerCertificates) > 0 {
 		cert := resp.TLS.PeerCertificates[0]
 		tlsIssuer = cert.Issuer.CommonName
-		tlsDaysLeft = int(time.Until(cert.NotAfter).Hours() / 24)
+		tlsDaysLeft = tlsDaysRemaining(cert.NotAfter, time.Now())
 		tlsValid = time.Now().Before(cert.NotAfter)
+		certChecked = true
 	}
 
 	httpData := &HTTPData{
-		TLSIssuer:     tlsIssuer,
-		Latency:       latency,
-		ContentLength: contentLength,
-		StatusCode:    statusCode,
-		TLSDaysLeft:   tlsDaysLeft,
-		Redirects:     redirects,
-		TLSValid:      tlsValid,
+		Method:           h.Method,
+		TLSIssuer:        tlsIssuer,
+		Latency:          latency,
+		ContentLength:    contentLength,
+		StatusCode:       statusCode,
+		TLSDaysLeft:      tlsDaysLeft,
+		Redirects:        redirects,
+		TLSValid:         tlsValid,
+		TLSChecked:       certChecked,
+		TLSVerifySkipped: resp.TLS != nil && h.SkipTLSVerify,
 	}
 
 	severity := SeverityOK
@@ -96,7 +111,13 @@ func (h *HTTPProber) Probe(ctx context.Context) (Result, error) {
 		severity = SeverityWarning
 	}
 
-	if tlsDaysLeft > 0 && tlsDaysLeft < 14 {
+	// Only claim expiry when a certificate was actually inspected: a resumed
+	// TLS session can report no peer certificates at all.
+	if certChecked && !tlsValid {
+		severity = SeverityError
+		success = false
+		message = "Certificate has expired"
+	} else if certChecked && tlsDaysLeft < 14 && severity == SeverityOK {
 		severity = SeverityWarning
 		message = fmt.Sprintf("Certificate expires in %d days", tlsDaysLeft)
 	}
@@ -111,4 +132,11 @@ func (h *HTTPProber) Probe(ctx context.Context) (Result, error) {
 		Success:   success,
 		Latency:   latency,
 	}, nil
+}
+
+// tlsDaysRemaining is whole days until notAfter, rounded toward zero. Flooring
+// is the safe direction for an expiry warning: a cert with 13.9 days left
+// reports 13, not 14, so it still trips the "expires soon" threshold.
+func tlsDaysRemaining(notAfter, now time.Time) int {
+	return int(notAfter.Sub(now).Hours() / 24)
 }

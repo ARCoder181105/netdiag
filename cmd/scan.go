@@ -1,17 +1,14 @@
-/*
-Copyright © 2026 ARCoder181105 <EMAIL ADDRESS>
-*/
-
 // Package cmd implements the CLI commands.
 package cmd
 
 import (
-	"context"
 	"fmt"
+	"strings"
 	"time"
 
 	"github.com/spf13/cobra"
 
+	"github.com/ARCoder181105/netdiag/pkg/config"
 	"github.com/ARCoder181105/netdiag/pkg/logger"
 	"github.com/ARCoder181105/netdiag/pkg/output"
 	"github.com/ARCoder181105/netdiag/pkg/probe"
@@ -19,7 +16,7 @@ import (
 
 var (
 	ports       string
-	scanTimeout int
+	scanTimeout time.Duration
 	concurrency int
 )
 
@@ -29,94 +26,105 @@ var scanCmd = &cobra.Command{
 	Long: `Scan a target host for open TCP ports using a high-concurrency worker pool.
 You can specify a single port, a list, or a range.
 
+Only scan hosts you own or have explicit permission to test.
+
 Examples:
   netdiag scan google.com
   netdiag scan 192.168.1.1 --ports 80,443,8000-8100
-  netdiag scan localhost -p 22 -t 2`,
+  netdiag scan localhost -p 22 -t 2s`,
 	Args: cobra.ExactArgs(1),
-	Run: func(_ *cobra.Command, args []string) {
-		host := args[0]
-
-		portList := probe.ParsePortRange(ports)
-		if len(portList) == 0 {
-			output.PrintError("No valid ports parsed. Please check your --ports flag.")
-			return
+	Run: func(cmd *cobra.Command, args []string) {
+		host := strings.TrimSpace(args[0])
+		if host == "" {
+			failUsage("no host given")
 		}
+
+		portList, err := probe.ParsePortRange(ports)
+		if err != nil {
+			failUsage(fmt.Sprintf("--ports: %v", err))
+		}
+
+		if concurrency < 1 {
+			failUsage("--concurrency must be at least 1")
+		}
+
+		effectiveTimeout := scanTimeoutValue(cmd)
+		requirePositiveDuration("--timeout", effectiveTimeout)
 
 		scanner := &probe.ConnectScanner{
 			Host:        host,
 			Ports:       portList,
-			Timeout:     time.Duration(scanTimeout) * time.Second,
+			Timeout:     effectiveTimeout,
 			Concurrency: concurrency,
 		}
 
-		result, err := scanner.Probe(context.Background())
+		runProbe(scanner, host, probeOpts{
+			LogAttrs: func(r probe.Result) []any {
+				if r.ScanData == nil {
+					return nil
+				}
+				return []any{
+					"total_ports", r.ScanData.TotalPorts,
+					"open_ports", r.ScanData.OpenPorts,
+					"scan_method", r.ScanData.ScanMethod,
+				}
+			},
+			Render: renderScan,
+		})
+	},
+}
 
-		if err != nil {
-			result = probe.Result{
-				Target:    host,
-				ProbeType: "scan",
-				Success:   false,
-				Severity:  probe.SeverityError,
-				Message:   err.Error(),
-				TimeStamp: time.Now(),
-			}
-		}
+// scanTimeoutValue prefers an explicit --timeout, falling back to
+// scan.default_timeout from ~/.netdiag.yaml.
+func scanTimeoutValue(cmd *cobra.Command) time.Duration {
+	if cmd.Flags().Changed("timeout") {
+		return scanTimeout
+	}
+	configured := config.AppConfig.Scan.DefaultTimeout
+	d, err := time.ParseDuration(configured)
+	switch {
+	case err != nil:
+		logger.Log.Warn("Ignoring unparseable scan.default_timeout",
+			"value", configured, "error", err, "using", scanTimeout)
+	case d <= 0:
+		logger.Log.Warn("Ignoring non-positive scan.default_timeout",
+			"value", configured, "using", scanTimeout)
+	default:
+		return d
+	}
+	return scanTimeout
+}
 
-		// ── Structured logging ────────────────────────────────────────────────
-		if result.Success && result.ScanData != nil {
-			logger.Log.Info("scan completed",
-				"target", result.Target,
-				"total_ports", result.ScanData.TotalPorts,
-				"open_ports", result.ScanData.OpenPorts,
-				"scan_method", result.ScanData.ScanMethod,
-			)
-		} else {
-			logger.Log.Error("scan failed",
-				"target", result.Target,
-				"error", result.Message,
-			)
-		}
-		// ─────────────────────────────────────────────────────────────────────
+func renderScan(result probe.Result) {
+	data := result.ScanData
+	if data == nil {
+		return
+	}
 
-		if jsonOutput {
-			output.PrintJSON(result)
-			return
-		}
-
-		if result.ScanData == nil || len(result.ScanData.OpenPorts) == 0 {
-			output.PrintWarning(result.Message)
-			return
-		}
-
+	if len(data.OpenPorts) > 0 {
 		headers := []string{"Port", "Protocol", "Status"}
-		var rows [][]string
+		rows := make([][]string, 0, len(data.OpenPorts))
 
-		for _, p := range result.ScanData.OpenPorts {
-			rows = append(rows, []string{
-				fmt.Sprintf("%d", p),
-				"TCP",
-				"Open",
-			})
+		for _, p := range data.OpenPorts {
+			rows = append(rows, []string{fmt.Sprintf("%d", p), "TCP", "Open"})
 		}
 
 		fmt.Println()
 		output.PrintTable(headers, rows)
+	}
 
-		output.PrintInfo(fmt.Sprintf(
-			"Scanned %d ports (%d ports/ms) using %s method.",
-			result.ScanData.TotalPorts,
-			result.ScanData.ScanRateMs,
-			result.ScanData.ScanMethod,
-		))
-
-		output.PrintSuccess(result.Message)
-	},
+	output.PrintInfo(fmt.Sprintf(
+		"Scanned %d ports in %s (%.1f ports/sec) using the %s method.",
+		data.TotalPorts,
+		result.Latency.Round(time.Millisecond),
+		data.PortsPerSec,
+		data.ScanMethod,
+	))
 }
 
 func init() {
 	rootCmd.AddCommand(scanCmd)
-	scanCmd.Flags().IntVarP(&scanTimeout, "timeout", "t", 1, "Timeout in seconds")
-	scanCmd.Flags().StringVarP(&ports, "ports", "p", "1-1024", "The range to scan")
-	scanCmd.Flags().IntVarP(&concurrency, "concurrency", "c", 100, "Number of concurrent ports to scan")
+	scanCmd.Flags().DurationVarP(&scanTimeout, "timeout", "t", time.Second, "Connection timeout per port (e.g. 1s, 500ms)")
+	scanCmd.Flags().StringVarP(&ports, "ports", "p", "1-1024", "Ports to scan: a list, a range, or both (e.g. 22,80,8000-8100)")
+	scanCmd.Flags().IntVarP(&concurrency, "concurrency", "c", 100, "Number of ports to probe concurrently")
 }

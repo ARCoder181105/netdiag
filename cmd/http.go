@@ -1,27 +1,22 @@
-/*
-Copyright © 2026 ARCoder181105 <EMAIL ADDRESS>
-*/
-
 // Package cmd implements the CLI commands.
 package cmd
 
 import (
-	"context"
 	"fmt"
+	"net/url"
 	"strings"
 	"time"
 
 	"github.com/spf13/cobra"
 
-	"github.com/ARCoder181105/netdiag/pkg/logger"
 	"github.com/ARCoder181105/netdiag/pkg/output"
 	"github.com/ARCoder181105/netdiag/pkg/probe"
 )
 
 var (
-	timeOut int
-	method  string
-	skipTLS bool
+	httpTimeout time.Duration
+	method      string
+	skipTLS     bool
 )
 
 var httpCmd = &cobra.Command{
@@ -32,108 +27,116 @@ var httpCmd = &cobra.Command{
 Examples:
   netdiag http example.com
   netdiag http https://example.com
-  netdiag http example.com --timeout 10
+  netdiag http example.com --timeout 10s
   netdiag http example.com --method POST
   netdiag http example.com --skip-tls`,
 	Args: cobra.ExactArgs(1),
 	Run: func(_ *cobra.Command, args []string) {
+		target, err := normalizeURL(args[0])
+		if err != nil {
+			failUsage(err.Error())
+		}
 
-		url := args[0]
-		if !strings.HasPrefix(url, "http://") && !strings.HasPrefix(url, "https://") {
-			url = "https://" + url
+		requirePositiveDuration("--timeout", httpTimeout)
+
+		// Normalize once so the request and the rendered table agree.
+		reqMethod := strings.ToUpper(strings.TrimSpace(method))
+
+		// Not in JSON mode: stdout must stay parseable. JSON callers get the
+		// same information from the tls_verify_skipped field.
+		if skipTLS && !jsonOutput {
+			output.PrintWarning("TLS certificate verification is disabled (--skip-tls)")
 		}
 
 		prober := &probe.HTTPProber{
-			URL:           url,
-			Method:        method,
-			Timeout:       time.Duration(timeOut) * time.Second,
+			URL:           target,
+			Method:        reqMethod,
+			Timeout:       httpTimeout,
 			SkipTLSVerify: skipTLS,
 		}
 
-		result, err := prober.Probe(context.Background())
-
-		if err != nil {
-			result = probe.Result{
-				Target:    url,
-				ProbeType: "http",
-				Success:   false,
-				Severity:  probe.SeverityError,
-				Message:   err.Error(),
-				TimeStamp: time.Now(),
-			}
-		}
-
-		// ── Structured logging ────────────────────────────────────────────────
-		if result.Success && result.HTTPData != nil {
-			logger.Log.Info("http check completed",
-				"target", result.Target,
-				"status_code", result.HTTPData.StatusCode,
-				"latency_ms", result.Latency.Milliseconds(),
-				"tls_valid", result.HTTPData.TLSValid,
-				"tls_days_left", result.HTTPData.TLSDaysLeft,
-			)
-		} else {
-			logger.Log.Error("http check failed",
-				"target", result.Target,
-				"error", result.Message,
-			)
-		}
-		// ─────────────────────────────────────────────────────────────────────
-
-		if jsonOutput {
-			output.PrintJSON(result)
-			return
-		}
-
-		if result.HTTPData == nil {
-			output.PrintError(result.Message)
-			return
-		}
-
-		data := result.HTTPData
-
-		headers := []string{
-			"URL", "Method", "Status", "Latency",
-			"Redirects", "TLS Valid", "TLS Days", "Content Length",
-		}
-
-		tlsDays := "-"
-		if data.TLSDaysLeft > 0 {
-			tlsDays = fmt.Sprintf("%d", data.TLSDaysLeft)
-		}
-
-		rows := [][]string{
-			{
-				result.Target,
-				method,
-				fmt.Sprintf("%d", data.StatusCode),
-				result.Latency.String(),
-				fmt.Sprintf("%d", data.Redirects),
-				fmt.Sprintf("%t", data.TLSValid),
-				tlsDays,
-				fmt.Sprintf("%d", data.ContentLength),
+		runProbe(prober, target, probeOpts{
+			LogAttrs: func(r probe.Result) []any {
+				if r.HTTPData == nil {
+					return nil
+				}
+				return []any{
+					"status_code", r.HTTPData.StatusCode,
+					"tls_valid", r.HTTPData.TLSValid,
+					"tls_days_left", r.HTTPData.TLSDaysLeft,
+				}
 			},
-		}
-
-		fmt.Println()
-		output.PrintTable(headers, rows)
-
-		switch result.Severity {
-		case probe.SeverityOK:
-			output.PrintSuccess(result.Message)
-		case probe.SeverityWarning:
-			output.PrintWarning(result.Message)
-		case probe.SeverityError:
-			output.PrintError(result.Message)
-		default:
-			output.PrintInfo(result.Message)
-		}
+			Render: renderHTTP,
+		})
 	},
+}
+
+// normalizeURL defaults a bare host to https and rejects anything that is not
+// a usable http(s) URL, rather than letting it fail deep inside net/http.
+func normalizeURL(raw string) (string, error) {
+	raw = strings.TrimSpace(raw)
+	if raw == "" {
+		return "", fmt.Errorf("no URL given")
+	}
+
+	if !strings.Contains(raw, "://") {
+		raw = "https://" + raw
+	}
+
+	parsed, err := url.Parse(raw)
+	if err != nil {
+		return "", fmt.Errorf("invalid URL %q: %w", raw, err)
+	}
+	if parsed.Scheme != "http" && parsed.Scheme != "https" {
+		return "", fmt.Errorf("unsupported scheme %q: only http and https are supported", parsed.Scheme)
+	}
+	if parsed.Host == "" {
+		return "", fmt.Errorf("invalid URL %q: no host", raw)
+	}
+
+	return parsed.String(), nil
+}
+
+func renderHTTP(result probe.Result) {
+	data := result.HTTPData
+	if data == nil {
+		return
+	}
+
+	tlsValid := "-"
+	tlsDays := "-"
+	if data.TLSChecked {
+		tlsValid = fmt.Sprintf("%t", data.TLSValid)
+		if data.TLSVerifySkipped {
+			tlsValid += " (unverified)"
+		}
+		tlsDays = fmt.Sprintf("%d", data.TLSDaysLeft)
+	}
+
+	headers := []string{
+		"URL", "Method", "Status", "Latency",
+		"Redirects", "TLS Valid", "TLS Days", "Issuer", "Content Length",
+	}
+
+	rows := [][]string{{
+		result.Target,
+		data.Method,
+		fmt.Sprintf("%d", data.StatusCode),
+		result.Latency.Round(time.Millisecond).String(),
+		fmt.Sprintf("%d", data.Redirects),
+		tlsValid,
+		tlsDays,
+		orDash(data.TLSIssuer),
+		fmt.Sprintf("%d", data.ContentLength),
+	}}
+
+	fmt.Println()
+	output.PrintTable(headers, rows)
 }
 
 func init() {
 	rootCmd.AddCommand(httpCmd)
-	httpCmd.Flags().IntVarP(&timeOut, "timeout", "t", 5, "Timeout for the request (seconds)")
+	httpCmd.Flags().DurationVarP(&httpTimeout, "timeout", "t", 5*time.Second, "Timeout for the request (e.g. 5s, 500ms)")
 	httpCmd.Flags().StringVarP(&method, "method", "m", "GET", "HTTP method for the request")
-	httpCmd.Flags().BoolVar(&skipTLS, "skip-tls", false, "Skip TLS certificate verification")
+	httpCmd.Flags().BoolVar(&skipTLS, "skip-tls", false, "Skip TLS certificate verification (insecure)")
 }

@@ -1,5 +1,11 @@
 # netdiag Implementation Plan
 
+> ⚠️ **Status: forward-looking checklist.** Phase 0 is complete (v0.2.0), and
+> v0.3.0 added correctness and hardening work outside this plan. **Phases 1-6
+> are not started.** Sample outputs and benchmark tables below are formats to
+> aim for, not measurements. See [ROADMAP.md](ROADMAP.md) for what actually
+> ships today.
+
 This document is the hands-on, task-by-task implementation guide. Each phase has a checklist of concrete files to create, code to write, and commands to run to verify the work is done. Follow phases in order — each one builds on the last.
 
 For the high-level "why" behind each decision, see [`MASTERPLAN.md`](MASTERPLAN.md).  
@@ -24,7 +30,7 @@ This is the most important file in the entire refactor. Everything downstream de
 
 - [x] Create `pkg/probe/` directory
 - [x] Define `Severity` type with constants `SeverityOK`, `SeverityWarning`, `SeverityError`, `SeverityUnknown`
-- [x] Define `Result` struct with fields: `ProbeType`, `Target`, `Timestamp`, `Severity`, `Success`, `Message`, `Latency`, and optional payload pointers
+- [x] Define `Result` struct with fields: `ProbeType`, `Target`, `TimeStamp`, `Severity`, `Success`, `Message`, `Latency`, and optional payload pointers
 - [x] Define payload structs: `PingData`, `ScanData`, `TraceData`, `HTTPData`, `DNSData`
 - [x] Define `Prober` interface:
   ```go
@@ -34,7 +40,7 @@ This is the most important file in the entire refactor. Everything downstream de
   }
   ```
 - [x] Add `json` struct tags to every exported field (needed for `--json` output and SQLite storage)
-- [ ] Write `Result.IsAnomaly() bool` helper (stub for Phase 4)
+- [ ] Write `Result.IsAnomaly() bool` helper — defer to Phase 4, when a caller exists
 
 ### 0.2 Extract probe logic into `pkg/probe/`
 
@@ -275,10 +281,10 @@ go get github.com/google/gopacket
   ┌──────────────┬────────┬────────────┬─────────┐
   │ Method       │ Time   │ Ports/sec  │ Speedup │
   ├──────────────┼────────┼────────────┼─────────┤
-  │ Connect scan │ 41.2s  │ 1,590      │ 1x      │
-  │ SYN scan     │ 0.89s  │ 73,600     │ 46.3x   │
+  │ Connect scan │ <time> │ <rate>     │ 1x      │
+  │ SYN scan     │ <time> │ <rate>     │ <n>x    │
   └──────────────┴────────┴────────────┴─────────┘
-  Open ports: [22, 80, 443] (results identical ✓)
+  Open ports: [...] (both methods must agree)
   ```
 
 ### 3.4 Write `docs/performance.md`

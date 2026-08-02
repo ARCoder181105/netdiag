@@ -66,74 +66,104 @@ func (c *ConnectScanner) Probe(ctx context.Context) (Result, error) {
 	sort.Ints(openPorts)
 
 	duration := time.Since(startTime)
-	ms := duration.Milliseconds()
-	if ms == 0 {
-		ms = 1
-	}
-	rate := int64(len(c.Ports)) / ms
 
 	data := &ScanData{
-		OpenPorts:  openPorts,
-		TotalPorts: len(c.Ports),
-		ScanMethod: "connect",
-		ScanRateMs: rate,
+		OpenPorts:   openPorts,
+		TotalPorts:  len(c.Ports),
+		ScanMethod:  "connect",
+		PortsPerSec: portsPerSec(len(c.Ports), duration),
 	}
 
-	message := fmt.Sprintf("Found %d open ports", len(openPorts))
+	// A scan that found nothing is reported the same way dig and discover
+	// report an empty result: it succeeded, but there is nothing to show.
+	severity := SeverityOK
+	if len(openPorts) == 0 {
+		severity = SeverityWarning
+	}
 
 	return Result{
 		Target:    c.Host,
 		TimeStamp: time.Now(),
 		ProbeType: "scan",
 		Success:   true,
-		Severity:  SeverityOK,
-		Message:   message,
+		Severity:  severity,
+		Message:   fmt.Sprintf("Found %d open ports", len(openPorts)),
 		ScanData:  data,
+		Latency:   duration,
 	}, nil
 }
 
-// parsePortRange converts strings like "80,443,1000-1005" into a slice of integers
-func ParsePortRange(portStr string) []int {
+// portsPerSec is the scan throughput. The previous ScanRateMs did integer
+// division of ports by elapsed milliseconds, so any scan slower than one port
+// per millisecond reported a flat 0.
+func portsPerSec(ports int, elapsed time.Duration) float64 {
+	if elapsed <= 0 {
+		return 0
+	}
+	return float64(ports) / elapsed.Seconds()
+}
+
+// ParsePortRange converts strings like "80,443,1000-1005" into a slice of
+// integers. Malformed input is rejected rather than skipped: silently dropping
+// "abc" from "abc,80" would scan one port and report success.
+func ParsePortRange(portStr string) ([]int, error) {
+	if strings.TrimSpace(portStr) == "" {
+		return nil, fmt.Errorf("no ports specified")
+	}
+
 	var result []int
-	parts := strings.Split(portStr, ",")
+	seen := make(map[int]bool)
 
-	for _, part := range parts {
+	for _, part := range strings.Split(portStr, ",") {
 		part = strings.TrimSpace(part)
+		if part == "" {
+			return nil, fmt.Errorf("empty port entry in %q", portStr)
+		}
 
-		if strings.Contains(part, "-") {
-			rangeParts := strings.Split(part, "-")
-			if len(rangeParts) != 2 {
-				continue
+		start, end, found := strings.Cut(part, "-")
+		if !found {
+			port, err := parsePort(part)
+			if err != nil {
+				return nil, err
 			}
-
-			start, err1 := strconv.Atoi(strings.TrimSpace(rangeParts[0]))
-			end, err2 := strconv.Atoi(strings.TrimSpace(rangeParts[1]))
-			if err1 != nil || err2 != nil {
-				continue
+			if !seen[port] {
+				seen[port] = true
+				result = append(result, port)
 			}
+			continue
+		}
 
-			if start > end {
-				start, end = end, start
-			}
+		low, err := parsePort(start)
+		if err != nil {
+			return nil, err
+		}
+		high, err := parsePort(end)
+		if err != nil {
+			return nil, err
+		}
+		if low > high {
+			low, high = high, low
+		}
 
-			if start < 1 || start > 65535 || end < 1 || end > 65535 {
-				continue
-			}
-
-			for i := start; i <= end; i++ {
+		for i := low; i <= high; i++ {
+			if !seen[i] {
+				seen[i] = true
 				result = append(result, i)
 			}
-		} else {
-			num, err := strconv.Atoi(part)
-			if err != nil {
-				continue
-			}
-			if num < 1 || num > 65535 {
-				continue
-			}
-			result = append(result, num)
 		}
 	}
 
-	return result
+	return result, nil
+}
+
+func parsePort(s string) (int, error) {
+	s = strings.TrimSpace(s)
+	port, err := strconv.Atoi(s)
+	if err != nil {
+		return 0, fmt.Errorf("invalid port %q: not a number", s)
+	}
+	if port < 1 || port > 65535 {
+		return 0, fmt.Errorf("invalid port %d: must be between 1 and 65535", port)
+	}
+	return port, nil
 }

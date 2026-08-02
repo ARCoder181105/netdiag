@@ -31,7 +31,7 @@ We are committed to providing a welcoming and inclusive environment for all cont
 
 Before you begin, ensure you have the following installed:
 
-- **Go 1.25 or higher** - [Download Go](https://go.dev/dl/)
+- **Go 1.24 or higher** - [Download Go](https://go.dev/dl/)
 - **Git** - [Install Git](https://git-scm.com/downloads)
 - **Administrator/root privileges** (for testing ICMP operations)
 
@@ -48,7 +48,7 @@ cd netdiag
 3. **Add upstream remote** to keep your fork in sync: 
 
 ```bash
-git remote add upstream https://github.com/ARCoder181105/netdiag. git
+git remote add upstream https://github.com/ARCoder181105/netdiag.git
 ```
 
 ## 🛠️ Development Setup
@@ -98,29 +98,55 @@ Understanding the project layout will help you navigate the codebase:
 ```
 netdiag/
 ├── main.go                 # Application entry point
-├── cmd/                    # Command definitions (Cobra commands)
-│   ├── ping. go            # Ping command
+├── cmd/                    # Cobra commands: flags, validation, rendering
+│   ├── root.go            # Root command, global flags, logger/config wiring
+│   ├── run.go             # runProbe(): shared runner for single-target commands, plus the batch helpers
+│   ├── ping.go            # Ping command
 │   ├── speedtest.go       # Speed test command
-│   ├── trace.go           # Traceroute command
+│   ├── tracer.go          # Traceroute command
 │   ├── scan.go            # Port scanner command
 │   ├── http.go            # HTTP health check command
 │   ├── dig.go             # DNS lookup command
 │   ├── whois.go           # WHOIS lookup command
 │   └── discover.go        # Network discovery command
-├── pkg/                    # Reusable packages and utilities
-│   └── [utility modules]
+├── pkg/
+│   ├── probe/             # All network logic; never prints, never exits
+│   │   ├── types.go       # Result, Severity, Prober interface, ErrorResult
+│   │   ├── icmp.go        # Shared privileged/unprivileged ICMP handling
+│   │   └── *.go           # One prober per probe type (+ _test.go)
+│   ├── output/            # Color, tables, JSON (stdout)
+│   ├── logger/            # log/slog wrapper (stderr)
+│   └── config/            # Viper loader for ~/.netdiag.yaml
 ├── go.mod                  # Go module definition
 ├── go.sum                  # Dependency checksums
 ├── LICENSE                 # License file
+├── SECURITY.md            # Vulnerability reporting policy
 ├── Readme.md              # Project documentation
 └── CONTRIBUTING.md        # This file
 ```
 
 ### Key Components
 
-- **`cmd/`**: Each file represents a subcommand using the Cobra framework
-- **`pkg/`**: Shared utilities, helpers, and business logic
+- **`cmd/`**: Thin Cobra wrappers. A command validates its arguments, builds a
+  `probe.Prober`, and hands it to `runProbe`. It must not contain network logic.
+- **`cmd/run.go`**: Owns cancellation, error normalization, structured logging,
+  `--json`, color, and exit codes, so those never drift between commands.
+  Single-target commands call `runProbe` directly; batch commands such as
+  `ping` aggregate per-host results themselves before rendering, reusing the
+  same `logResult`/`exitForAll` helpers.
+- **`pkg/probe/`**: All network logic. Every prober returns a `probe.Result`;
+  probes never print and never call `os.Exit`, which is what makes them
+  testable and reusable.
 - **`main.go`**: Bootstraps the CLI and initializes Cobra
+
+### Adding a Command
+
+1. Add a prober to `pkg/probe/` implementing `Probe(ctx)` and `Type()`.
+2. Add its payload struct and a field on `probe.Result` in `types.go`.
+3. Add a thin `cmd/yours.go` that validates input and calls `runProbe`.
+4. Extract any non-trivial decision (a threshold, a parser) into a pure
+   function and test that function directly — do not re-implement its logic
+   inside the test.
 
 ## 🤝 How to Contribute
 
@@ -273,11 +299,19 @@ Fixed integer overflow when calculating packet loss percentage
 for high packet counts. 
 ```
 
+### Commit Authorship
+
+Commits carry their human author only. Do not add `Co-Authored-By` trailers for
+tools, bots, or code assistants, and do not include generated-by notices in
+commit messages, pull request descriptions, or source comments. If a change was
+genuinely co-written by another person, a `Co-Authored-By` trailer naming them
+is welcome.
+
 ## 🧪 Testing Guidelines
 
 ### Writing Tests
 
-- Place test files alongside source files:  `ping. go` → `ping_test.go`
+- Place test files alongside source files:  `ping.go` → `ping_test.go`
 - Use table-driven tests for multiple test cases: 
 
 ```go
@@ -294,7 +328,7 @@ func TestParsePortRange(t *testing.T) {
     }
     
     for _, tt := range tests {
-        t.Run(tt. name, func(t *testing. T) {
+        t.Run(tt.name, func(t *testing.T) {
             result, err := ParsePortRange(tt.input)
             if (err != nil) != tt.wantErr {
                 t.Errorf("ParsePortRange() error = %v, wantErr %v", err, tt.wantErr)
@@ -392,13 +426,14 @@ We love new ideas! Here are some features we'd like to see:
 - [ ] **MTR (My Traceroute)** - Continuous latency monitoring
 - [ ] **IP Geolocation** - Geographic location lookup for IP addresses
 - [ ] **mDNS/Zeroconf** - Service discovery on local networks
-- [ ] **JSON Output Mode** - Machine-readable output (`--json` flag)
-- [ ] **Configuration File** - YAML/TOML config file support
-- [ ] **IPv6 Support** - Full IPv6 support for all commands
+- [ ] **IPv6 Support** - Full IPv6 support for all commands (`dig AAAA` is done)
 - [ ] **Packet Capture** - Save ICMP packets to PCAP files
-- [ ] **Continuous Monitoring** - Watch mode for ongoing diagnostics
-- [ ] **Custom DNS Servers** - Specify DNS resolver for queries
 - [ ] **Bandwidth Monitoring** - Real-time network usage tracking
+
+Already shipped: `--json` output, `~/.netdiag.yaml` config, and custom DNS
+servers via `dig --server`. Larger multi-release work — the `monitor` daemon,
+TUI dashboard, SYN scanner, and analytics — is tracked in
+[ROADMAP.md](ROADMAP.md); please comment on the roadmap before starting one.
 
 To propose a new feature:
 
