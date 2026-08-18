@@ -159,7 +159,7 @@ func localIPv4Network() (net.IP, *net.IPNet, error) {
 		return nil, nil, err
 	}
 
-	preferred := preferredIPv4()
+	preferred := preferredIPv4("8.8.8.8:80")
 
 	var fallback *net.IPNet
 	var fallbackIP net.IP
@@ -198,11 +198,12 @@ func localIPv4Network() (net.IP, *net.IPNet, error) {
 	return nil, nil, fmt.Errorf("no active local IPv4 address found")
 }
 
-// preferredIPv4 reports the source address the kernel would use for outbound
-// traffic. The UDP "connection" is only a routing table lookup — no packets are
-// sent — so this works offline and costs nothing. Returns nil if it cannot tell.
-func preferredIPv4() net.IP {
-	conn, err := net.Dial("udp4", "8.8.8.8:80")
+// preferredIPv4 reports the source address the kernel would use to reach dst
+// ("host:port"). The UDP "connection" is only a routing table lookup — no
+// packets are sent — so this works offline and costs nothing. Returns nil if it
+// cannot tell.
+func preferredIPv4(dst string) net.IP {
+	conn, err := net.Dial("udp4", dst)
 	if err != nil {
 		return nil
 	}

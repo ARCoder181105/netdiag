@@ -4,6 +4,7 @@ go 1.24.0
 
 require (
 	github.com/fatih/color v1.18.0
+	github.com/google/gopacket v1.1.19
 	github.com/likexian/whois v1.15.7
 	github.com/olekukonko/tablewriter v0.0.5
 	github.com/prometheus-community/pro-bing v0.7.0

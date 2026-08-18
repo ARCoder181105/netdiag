@@ -63,16 +63,14 @@ func (c *ConnectScanner) Probe(ctx context.Context) (Result, error) {
 		openPorts = append(openPorts, port)
 	}
 
+	return scanResult(c.Host, len(c.Ports), openPorts, "connect", time.Since(startTime)), nil
+}
+
+// scanResult builds the Result for any scan method. Both scanners go through
+// it so a --fast scan and a connect scan are byte-for-byte the same JSON shape,
+// differing only in scan_method.
+func scanResult(host string, totalPorts int, openPorts []int, method string, duration time.Duration) Result {
 	sort.Ints(openPorts)
-
-	duration := time.Since(startTime)
-
-	data := &ScanData{
-		OpenPorts:   openPorts,
-		TotalPorts:  len(c.Ports),
-		ScanMethod:  "connect",
-		PortsPerSec: portsPerSec(len(c.Ports), duration),
-	}
 
 	// A scan that found nothing is reported the same way dig and discover
 	// report an empty result: it succeeded, but there is nothing to show.
@@ -82,15 +80,20 @@ func (c *ConnectScanner) Probe(ctx context.Context) (Result, error) {
 	}
 
 	return Result{
-		Target:    c.Host,
+		Target:    host,
 		TimeStamp: time.Now(),
 		ProbeType: "scan",
 		Success:   true,
 		Severity:  severity,
 		Message:   fmt.Sprintf("Found %d open ports", len(openPorts)),
-		ScanData:  data,
-		Latency:   duration,
-	}, nil
+		ScanData: &ScanData{
+			OpenPorts:   openPorts,
+			TotalPorts:  totalPorts,
+			ScanMethod:  method,
+			PortsPerSec: portsPerSec(totalPorts, duration),
+		},
+		Latency: duration,
+	}
 }
 
 // portsPerSec is the scan throughput. The previous ScanRateMs did integer
