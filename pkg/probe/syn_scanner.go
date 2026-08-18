@@ -82,9 +82,15 @@ func (s *SYNScanner) Probe(ctx context.Context) (Result, error) {
 	// the address it would use for the internet instead would produce a
 	// checksum over the wrong pseudo-header when scanning a host reached
 	// through another interface.
+	// No route to the target means no source address, and without one the
+	// checksum pseudo-header cannot be built. The connect scanner needs no
+	// source address of its own, so it can still classify these ports — the
+	// same reasoning as the privilege fallback below.
 	src := preferredIPv4(net.JoinHostPort(dst.IP.String(), "80"))
 	if src == nil {
-		return Result{}, fmt.Errorf("cannot determine a source address for %s", dst.IP)
+		s.notify(fmt.Sprintf(
+			"no route-derived source address for %s: falling back to connect scan", dst.IP))
+		return s.Fallback.Probe(ctx)
 	}
 
 	conn, err := net.ListenPacket("ip4:tcp", "0.0.0.0")
@@ -143,7 +149,7 @@ func (s *SYNScanner) Probe(ctx context.Context) (Result, error) {
 		return Result{}, sendErr
 	}
 
-	return scanResult(s.Host, len(s.Ports), corr.openPorts(), "syn", time.Since(start)), nil
+	return scanResult(s.Host, len(s.Ports), corr.openPorts(), "syn", time.Since(start), ctx.Err() != nil), nil
 }
 
 func (s *SYNScanner) notify(msg string) {

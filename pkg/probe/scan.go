@@ -63,21 +63,16 @@ func (c *ConnectScanner) Probe(ctx context.Context) (Result, error) {
 		openPorts = append(openPorts, port)
 	}
 
-	return scanResult(c.Host, len(c.Ports), openPorts, "connect", time.Since(startTime)), nil
+	return scanResult(c.Host, len(c.Ports), openPorts, "connect", time.Since(startTime), ctx.Err() != nil), nil
 }
 
 // scanResult builds the Result for any scan method. Both scanners go through
 // it so a --fast scan and a connect scan are byte-for-byte the same JSON shape,
 // differing only in scan_method.
-func scanResult(host string, totalPorts int, openPorts []int, method string, duration time.Duration) Result {
+func scanResult(host string, totalPorts int, openPorts []int, method string, duration time.Duration, interrupted bool) Result {
 	sort.Ints(openPorts)
 
-	// A scan that found nothing is reported the same way dig and discover
-	// report an empty result: it succeeded, but there is nothing to show.
-	severity := SeverityOK
-	if len(openPorts) == 0 {
-		severity = SeverityWarning
-	}
+	severity, message := scanSummary(len(openPorts), totalPorts, interrupted)
 
 	return Result{
 		Target:    host,
@@ -85,7 +80,7 @@ func scanResult(host string, totalPorts int, openPorts []int, method string, dur
 		ProbeType: "scan",
 		Success:   true,
 		Severity:  severity,
-		Message:   fmt.Sprintf("Found %d open ports", len(openPorts)),
+		Message:   message,
 		ScanData: &ScanData{
 			OpenPorts:   openPorts,
 			TotalPorts:  totalPorts,
@@ -93,6 +88,25 @@ func scanResult(host string, totalPorts int, openPorts []int, method string, dur
 			PortsPerSec: portsPerSec(totalPorts, duration),
 		},
 		Latency: duration,
+	}
+}
+
+// scanSummary classifies a finished scan. Kept pure so the classification can
+// be tested without a network, the same way discoverSummary is.
+func scanSummary(open, totalPorts int, interrupted bool) (Severity, string) {
+	switch {
+	case interrupted:
+		// Ctrl+C part-way through: the unscanned ports were never probed, so
+		// reporting "found 0 open ports" as a completed scan would be a lie.
+		// This mirrors how an interrupted discover sweep reports itself.
+		return SeverityWarning, fmt.Sprintf(
+			"Scan interrupted after finding %d open ports; results are incomplete.", open)
+	case open == 0:
+		// A scan that found nothing is reported the same way dig and discover
+		// report an empty result: it succeeded, but there is nothing to show.
+		return SeverityWarning, fmt.Sprintf("Found 0 open ports out of %d scanned", totalPorts)
+	default:
+		return SeverityOK, fmt.Sprintf("Found %d open ports", open)
 	}
 }
 

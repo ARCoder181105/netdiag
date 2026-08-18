@@ -7,6 +7,7 @@ import (
 	"net"
 	"reflect"
 	"sort"
+	"strings"
 	"testing"
 	"time"
 
@@ -22,8 +23,8 @@ import (
 // that stops calling it — TestSYNScanMatchesConnectScanSchema compares the
 // output of the two real Probe methods, but needs CAP_NET_RAW to run.
 func TestScanJSONSchemaIsMethodIndependent(t *testing.T) {
-	connect := scanResult("example.com", 3, []int{22, 80}, "connect", 250*time.Millisecond)
-	syn := scanResult("example.com", 3, []int{22, 80}, "syn", 12*time.Millisecond)
+	connect := scanResult("example.com", 3, []int{22, 80}, "connect", 250*time.Millisecond, false)
+	syn := scanResult("example.com", 3, []int{22, 80}, "syn", 12*time.Millisecond, false)
 
 	connectKeys := jsonKeys(t, connect)
 	synKeys := jsonKeys(t, syn)
@@ -39,10 +40,98 @@ func TestScanJSONSchemaIsMethodIndependent(t *testing.T) {
 
 	// The severity contract is part of the schema's meaning: a scan that found
 	// nothing is a warning, not an error, so it still exits 0.
-	empty := scanResult("example.com", 3, nil, "syn", time.Millisecond)
+	empty := scanResult("example.com", 3, nil, "syn", time.Millisecond, false)
 	if empty.Severity != SeverityWarning || !empty.Success {
 		t.Errorf("empty SYN scan = severity %v success %v, want Warning/true",
 			empty.Severity, empty.Success)
+	}
+}
+
+// Ctrl+C part-way through a scan leaves most ports unprobed. Reporting that as
+// a completed scan that found nothing would tell a script the ports are closed
+// when they were never tried.
+func TestScanSummaryReportsInterruptedScansAsIncomplete(t *testing.T) {
+	tests := []struct {
+		name        string
+		open        int
+		total       int
+		interrupted bool
+		wantSev     Severity
+		wantMsg     string
+	}{
+		{"completed with findings", 2, 1024, false, SeverityOK, "Found 2 open ports"},
+		{"completed with nothing", 0, 1024, false, SeverityWarning, "Found 0 open ports out of 1024 scanned"},
+		{
+			"interrupted before finding anything", 0, 1024, true, SeverityWarning,
+			"Scan interrupted after finding 0 open ports; results are incomplete.",
+		},
+		{
+			"interrupted after finding some", 3, 1024, true, SeverityWarning,
+			"Scan interrupted after finding 3 open ports; results are incomplete.",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			gotSev, gotMsg := scanSummary(tt.open, tt.total, tt.interrupted)
+			if gotSev != tt.wantSev || gotMsg != tt.wantMsg {
+				t.Errorf("scanSummary(%d, %d, %v) = (%v, %q), want (%v, %q)",
+					tt.open, tt.total, tt.interrupted, gotSev, gotMsg, tt.wantSev, tt.wantMsg)
+			}
+		})
+	}
+}
+
+// A SYN scanner with no fallback is a programming error, not a runtime
+// condition: every construction site has a connect scanner to hand.
+func TestSYNScannerRequiresAFallback(t *testing.T) {
+	scanner := &SYNScanner{Host: "127.0.0.1", Ports: []int{80}, Timeout: time.Second, Concurrency: 1}
+
+	_, err := scanner.Probe(context.Background())
+	if err == nil {
+		t.Fatal("Probe with no Fallback returned no error")
+	}
+	if !strings.Contains(err.Error(), "requires a fallback scanner") {
+		t.Errorf("error = %q, want it to mention the missing fallback scanner", err)
+	}
+}
+
+// Without CAP_NET_RAW the scan must degrade to the connect scanner rather than
+// fail, and must say so exactly once, through Notify rather than stdout.
+func TestSYNScanFallsBackWithoutPrivilege(t *testing.T) {
+	if conn, err := net.ListenPacket("ip4:tcp", "0.0.0.0"); err == nil {
+		_ = conn.Close()
+		t.Skip("this process can open a raw socket, so the fallback path is not reachable here")
+	}
+
+	listener, err := net.Listen("tcp", "127.0.0.1:0")
+	if err != nil {
+		t.Fatalf("listen: %v", err)
+	}
+	defer func() { _ = listener.Close() }()
+	openPort := listener.Addr().(*net.TCPAddr).Port
+
+	var notices []string
+	scanner := synScannerFor([]int{openPort})
+	scanner.Notify = func(msg string) { notices = append(notices, msg) }
+
+	result, err := scanner.Probe(context.Background())
+	if err != nil {
+		t.Fatalf("Probe: %v", err)
+	}
+
+	if result.ScanData.ScanMethod != "connect" {
+		t.Errorf("scan method = %q, want connect", result.ScanData.ScanMethod)
+	}
+	if !reflect.DeepEqual(result.ScanData.OpenPorts, []int{openPort}) {
+		t.Errorf("open ports = %v, want [%d]: the fallback must still scan",
+			result.ScanData.OpenPorts, openPort)
+	}
+	if len(notices) != 1 {
+		t.Fatalf("Notify called %d times, want exactly 1: %v", len(notices), notices)
+	}
+	if !strings.Contains(notices[0], "falling back to connect scan") {
+		t.Errorf("notice = %q, want it to say the scan fell back", notices[0])
 	}
 }
 

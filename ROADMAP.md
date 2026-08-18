@@ -130,7 +130,8 @@ Current `net.DialTimeout("tcp", ...)` completes a full 3-way TCP handshake per p
 
 Full methodology, environment and caveats: [`docs/performance.md`](docs/performance.md).
 Measured in a `--cap-add=NET_RAW` container on a 12th Gen Intel Core i7-12650H,
-Linux 7.0.0-28-generic, median of 5 runs.
+Linux 7.0.0-28-generic. The loopback rows are the median of 5 runs; the filtered
+rows are the median of 3.
 
 | Target | Method | Time | Ports/sec | Speedup |
 | ------ | ------ | ---- | --------- | ------- |
