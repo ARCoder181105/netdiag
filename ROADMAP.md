@@ -129,23 +129,25 @@ Current `net.DialTimeout("tcp", ...)` completes a full 3-way TCP handshake per p
 ### Measured results
 
 Full methodology, environment and caveats: [`docs/performance.md`](docs/performance.md).
-Measured in a `--cap-add=NET_RAW` container on a 12th Gen Intel Core i7-12650H,
-Linux 7.0.0-28-generic. The loopback rows are the median of 5 runs; the filtered
-rows are the median of 3.
+Measured on bare metal — a 12th Gen Intel Core i7-12650H running Linux
+7.0.0-28-generic, with `setcap cap_net_raw+ep` on the binary rather than root.
+The loopback rows are the median of 5 runs; the filtered rows are the median
+of 3.
 
 | Target | Method | Time | Ports/sec | Speedup |
 | ------ | ------ | ---- | --------- | ------- |
-| 65,535 closed ports on loopback, `-c 100` | connect | 289 ms | 226,756 | 1.0x |
-| 65,535 closed ports on loopback, `-c 100` | syn | 199 ms | 330,084 | **1.45x** |
-| 65,535 closed ports on loopback, `-c 2000` | connect | 361 ms | 181,453 | 1.0x |
-| 65,535 closed ports on loopback, `-c 2000` | syn | 189 ms | 346,858 | **1.9x** |
+| 65,535 closed ports on loopback, `-c 100` | connect | 264 ms | 248,496 | 1.0x |
+| 65,535 closed ports on loopback, `-c 100` | syn | 151 ms | 433,686 | **1.75x** |
+| 65,535 closed ports on loopback, `-c 2000` | connect | 385 ms | 170,308 | 1.0x |
+| 65,535 closed ports on loopback, `-c 2000` | syn | 128 ms | 510,140 | **3.0x** |
 | 1,024 filtered ports, `-t 1s -c 100` | connect | 11.009 s | 93 | 1.0x |
 | 1,024 filtered ports, `-t 1s -c 100` | syn | 11.008 s | 93 | **1.0x** |
 
-1.45x, not the order of magnitude usually quoted for SYN scanners — because on
+1.75x, not the order of magnitude usually quoted for SYN scanners — because on
 loopback there is no timeout to avoid and no round trip to overlap, which is
 exactly what half-open scanning exists to exploit. Against a silent host both
-methods are bound by ports ÷ concurrency × timeout, so they tie.
+methods are bound by ports ÷ concurrency × timeout, so they tie. Both methods
+agreed on which ports were open in every loopback run.
 
 The first working version was *slower* than the connect scan (0.75x). The fix
 was not the packet library — building and checksumming all 65,535 packets costs
@@ -158,7 +160,7 @@ Scanning 200 open ports with `ulimit -n 32` and `-c 500`, five runs:
 
 | Run | 1 | 2 | 3 | 4 | 5 |
 | --- | - | - | - | - | - |
-| connect — open ports found | 180 | 198 | 200 | 196 | 180 |
+| connect — open ports found | 200 | 184 | 166 | 154 | 200 |
 | syn — open ports found | 200 | 200 | 200 | 200 | 200 |
 
 The connect scan needs a descriptor per port and reports an `EMFILE` failure as
