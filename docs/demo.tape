@@ -21,10 +21,10 @@
 Output docs/demo.gif
 
 Set Shell bash
-Set FontSize 15
-Set Width 1200
-Set Height 780
-Set Padding 20
+Set FontSize 14
+Set Width 1600
+Set Height 900
+Set Padding 30
 Set Theme "Catppuccin Mocha"
 Set TypingSpeed 55ms
 Set PlaybackSpeed 1.0
@@ -71,7 +71,7 @@ Type "clear"  Enter  Sleep 300ms
 Type "netdiag dig github.com MX"  Sleep 400ms  Enter
 Sleep 3s
 
-Type "echo \"exit: $?\""  Sleep 300ms  Enter
+Type 'echo "exit: $?"' Sleep 300ms Enter
 Sleep 2s
 
 Sleep 1s

@@ -16,12 +16,12 @@ netdiag scan 192.168.1.1 -p 1-65535 --fast
 netdiag http https://example.com --json | jq .http_data.tls_days_left
 ```
 
-<!--
+
   Demo recording: run `vhs docs/demo.tape` to produce docs/demo.gif,
   then uncomment the line below.
 
 ![netdiag demo](docs/demo.gif)
--->
+
 
 ## Contents
 
