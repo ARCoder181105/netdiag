@@ -18,6 +18,7 @@ var (
 	ports       string
 	scanTimeout time.Duration
 	concurrency int
+	fastScan    bool
 )
 
 var scanCmd = &cobra.Command{
@@ -31,7 +32,8 @@ Only scan hosts you own or have explicit permission to test.
 Examples:
   netdiag scan google.com
   netdiag scan 192.168.1.1 --ports 80,443,8000-8100
-  netdiag scan localhost -p 22 -t 2s`,
+  netdiag scan localhost -p 22 -t 2s
+  netdiag scan 192.168.1.1 -p 1-65535 --fast`,
 	Args: cobra.ExactArgs(1),
 	Run: func(cmd *cobra.Command, args []string) {
 		host := strings.TrimSpace(args[0])
@@ -51,11 +53,24 @@ Examples:
 		effectiveTimeout := scanTimeoutValue(cmd)
 		requirePositiveDuration("--timeout", effectiveTimeout)
 
-		scanner := &probe.ConnectScanner{
+		connect := &probe.ConnectScanner{
 			Host:        host,
 			Ports:       portList,
 			Timeout:     effectiveTimeout,
 			Concurrency: concurrency,
+		}
+
+		var scanner probe.Prober = connect
+		if fastScan {
+			scanner = &probe.SYNScanner{
+				Host:        host,
+				Ports:       portList,
+				Timeout:     effectiveTimeout,
+				Concurrency: concurrency,
+				Fallback:    connect,
+				// Diagnostics go to stderr so --json stdout stays parseable.
+				Notify: output.PrintErrorLine,
+			}
 		}
 
 		runProbe(scanner, host, probeOpts{
@@ -127,4 +142,5 @@ func init() {
 	scanCmd.Flags().DurationVarP(&scanTimeout, "timeout", "t", time.Second, "Connection timeout per port (e.g. 1s, 500ms)")
 	scanCmd.Flags().StringVarP(&ports, "ports", "p", "1-1024", "Ports to scan: a list, a range, or both (e.g. 22,80,8000-8100)")
 	scanCmd.Flags().IntVarP(&concurrency, "concurrency", "c", 100, "Number of ports to probe concurrently")
+	scanCmd.Flags().BoolVar(&fastScan, "fast", false, "Use a half-open SYN scan (needs CAP_NET_RAW; falls back to the connect scan)")
 }
