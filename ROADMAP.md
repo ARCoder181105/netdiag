@@ -134,22 +134,30 @@ Linux 7.0.0-28-generic, median of 5 runs.
 
 | Target | Method | Time | Ports/sec | Speedup |
 | ------ | ------ | ---- | --------- | ------- |
-| 65,535 closed ports on loopback, `-c 100` | connect | 269 ms | 243,565 | 1.0x |
-| 65,535 closed ports on loopback, `-c 100` | syn | 359 ms | 182,514 | **0.75x** |
+| 65,535 closed ports on loopback, `-c 100` | connect | 289 ms | 226,756 | 1.0x |
+| 65,535 closed ports on loopback, `-c 100` | syn | 199 ms | 330,084 | **1.45x** |
+| 65,535 closed ports on loopback, `-c 2000` | connect | 361 ms | 181,453 | 1.0x |
+| 65,535 closed ports on loopback, `-c 2000` | syn | 189 ms | 346,858 | **1.9x** |
 | 1,024 filtered ports, `-t 1s -c 100` | connect | 11.009 s | 93 | 1.0x |
 | 1,024 filtered ports, `-t 1s -c 100` | syn | 11.008 s | 93 | **1.0x** |
 
-**The SYN scanner is not faster on any target that could be measured here.** On
-loopback, a connect to a closed port is refused instantly, so there is no
-timeout to save; against a silent host, both methods are bound by
-ports ÷ concurrency × timeout.
+1.45x, not the order of magnitude usually quoted for SYN scanners — because on
+loopback there is no timeout to avoid and no round trip to overlap, which is
+exactly what half-open scanning exists to exploit. Against a silent host both
+methods are bound by ports ÷ concurrency × timeout, so they tie.
 
-The measured advantage is accuracy under file descriptor pressure. Scanning 200
-open ports with `ulimit -n 32` and `-c 500`, five runs:
+The first working version was *slower* than the connect scan (0.75x). The fix
+was not the packet library — building and checksumming all 65,535 packets costs
+1.7 ms, half a percent of the scan — but sending from eight raw sockets instead
+of one, since the kernel serializes writes per socket. `docs/performance.md`
+has the component-by-component measurements.
+
+There is also a measured accuracy advantage under file descriptor pressure.
+Scanning 200 open ports with `ulimit -n 32` and `-c 500`, five runs:
 
 | Run | 1 | 2 | 3 | 4 | 5 |
 | --- | - | - | - | - | - |
-| connect — open ports found | 128 | 196 | 186 | 200 | 169 |
+| connect — open ports found | 180 | 198 | 200 | 196 | 180 |
 | syn — open ports found | 200 | 200 | 200 | 200 | 200 |
 
 The connect scan needs a descriptor per port and reports an `EMFILE` failure as

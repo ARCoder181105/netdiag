@@ -10,8 +10,8 @@ import (
 	"sync"
 	"time"
 
-	"github.com/google/gopacket"
-	"github.com/google/gopacket/layers"
+	"github.com/gopacket/gopacket"
+	"github.com/gopacket/gopacket/layers"
 )
 
 // SYNScanner probes TCP ports with half-open (SYN) scanning: it sends a bare
@@ -61,6 +61,11 @@ const (
 	// this to net.core.rmem_max, which is why the scanner still has to cope
 	// with dropped replies rather than assume this is enough.
 	readBufferBytes = 4 << 20
+	// sendSockets is how many extra raw sockets are opened purely to send
+	// from. Writes to a single raw socket serialize in the kernel, so this is
+	// the only thing that makes the send path parallel. Measured on loopback;
+	// past this the receive path is the limit, not the send path.
+	sendSockets = 7
 )
 
 func (s *SYNScanner) Probe(ctx context.Context) (Result, error) {
@@ -119,7 +124,15 @@ func (s *SYNScanner) Probe(ctx context.Context) (Result, error) {
 		receiveReplies(conn, dst.IP, corr, replies)
 	}()
 
-	sendErr := s.sendAll(ctx, conn, src, dst.IP, corr, replies)
+	// Extra sockets purely to send from. Measured: writes to one raw socket
+	// serialize inside the kernel, so adding sender goroutines to a single
+	// socket makes a 65,535-packet send slower (156ms to 221ms), while giving
+	// each sender its own socket makes it faster (185ms to 39ms). See
+	// docs/performance.md.
+	senders := openSendSockets(sendSockets)
+	defer closeAll(senders)
+
+	sendErr := s.sendAll(ctx, append(senders, conn), src, dst.IP, corr, replies)
 
 	// Closing the socket is what unblocks the receiver's ReadFrom. Without it
 	// a canceled 65k-port scan would sit here until the last read timed out.
@@ -145,8 +158,84 @@ type inflight struct {
 	port     int
 }
 
+// openSendSockets opens n additional raw sockets to send from, returning
+// however many it got. Failing to open them is not fatal: the scan still works
+// on the socket it already has, only slower.
+func openSendSockets(n int) []net.PacketConn {
+	conns := make([]net.PacketConn, 0, n)
+	for range n {
+		conn, err := net.ListenPacket("ip4:tcp", "0.0.0.0")
+		if err != nil {
+			break
+		}
+		// These sockets are never read from, but the kernel still queues a copy
+		// of every inbound TCP segment on each one. Shrink those queues so the
+		// copies are dropped immediately instead of holding memory.
+		if raw, ok := conn.(*net.IPConn); ok {
+			_ = raw.SetReadBuffer(1)
+		}
+		conns = append(conns, conn)
+	}
+	return conns
+}
+
+func closeAll(conns []net.PacketConn) {
+	for _, conn := range conns {
+		_ = conn.Close()
+	}
+}
+
 // sendAll paces the SYN packets, then waits out the probes still in flight.
-func (s *SYNScanner) sendAll(ctx context.Context, conn net.PacketConn, src, dst net.IP, corr *correlator, replies <-chan struct{}) error {
+//
+// Pacing stays on this one goroutine — the in-flight queue and the limiter are
+// owned by it and need no locking. The workers do nothing but build a packet
+// and make the write syscall, which is the part that parallelizes.
+func (s *SYNScanner) sendAll(ctx context.Context, conns []net.PacketConn, src, dst net.IP, corr *correlator, replies <-chan struct{}) error {
+	ports := make(chan int, len(conns)*2)
+	sendErrs := make(chan error, len(conns))
+
+	var workers sync.WaitGroup
+	for _, conn := range conns {
+		workers.Add(1)
+		go func(conn net.PacketConn) {
+			defer workers.Done()
+			if err := sendSYNs(conn, ports, src, dst, corr); err != nil {
+				sendErrs <- err
+			}
+		}(conn)
+	}
+
+	err := s.paceSends(ctx, ports, corr, replies)
+	close(ports)
+	workers.Wait()
+	close(sendErrs)
+
+	if err != nil {
+		return err
+	}
+	return <-sendErrs // nil when no worker failed
+}
+
+// sendSYNs builds and writes one SYN per port taken from the queue. A write
+// error stops this worker; the others keep going until the queue is drained.
+func sendSYNs(conn net.PacketConn, ports <-chan int, src, dst net.IP, corr *correlator) error {
+	addr := &net.IPAddr{IP: dst}
+
+	for port := range ports {
+		packet, err := buildSYN(src, dst, corr.srcPort, uint16(port), corr.seqFor(port))
+		if err != nil {
+			return fmt.Errorf("build SYN for port %d: %w", port, err)
+		}
+		if _, err := conn.WriteTo(packet, addr); err != nil {
+			return fmt.Errorf("send SYN to %s:%d: %w", dst, port, err)
+		}
+	}
+	return nil
+}
+
+// paceSends feeds ports to the senders at the rate the limiter allows, then
+// waits out the probes still in flight.
+func (s *SYNScanner) paceSends(ctx context.Context, ports chan<- int, corr *correlator, replies <-chan struct{}) error {
 	limiter := newAIMD(s.Concurrency)
 	queue := make([]inflight, 0, min(len(s.Ports), 4096))
 	head := 0
@@ -182,14 +271,15 @@ func (s *SYNScanner) sendAll(ctx context.Context, conn net.PacketConn, src, dst 
 			waitForRoom(ctx, replies, queue[head].deadline)
 		}
 
-		packet, err := buildSYN(src, dst, corr.srcPort, uint16(port), corr.seqFor(port))
-		if err != nil {
-			return fmt.Errorf("build SYN for port %d: %w", port, err)
-		}
-		if _, err := conn.WriteTo(packet, &net.IPAddr{IP: dst}); err != nil {
-			return fmt.Errorf("send SYN to %s:%d: %w", dst, port, err)
-		}
+		// The deadline is taken here rather than at the write, so a probe is
+		// never given extra time because a sender was briefly backed up.
 		queue = append(queue, inflight{port: port, deadline: time.Now().Add(s.Timeout)})
+
+		select {
+		case ports <- port:
+		case <-ctx.Done():
+			return nil
+		}
 	}
 
 	// Everything is sent; wait for the stragglers.

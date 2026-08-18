@@ -5,11 +5,17 @@ below. Nothing here is projected, extrapolated, or taken from another tool's
 published results. Where something could not be measured, it says so instead of
 guessing.
 
-**Summary:** on the hardware and targets available here, the SYN scanner is
-**not faster** than the connect scanner — it ranges from 0.75x to 1.05x. Its
-measured advantage is correctness, not speed: it does not consume a file
-descriptor per port, so it still finds every open port at concurrency levels
-where the connect scan silently misses up to a third of them.
+**Summary:** the SYN scanner is **1.45x** faster than the connect scanner on
+65,535 loopback ports, and **1.9x** at higher concurrency. It is level with it
+against a filtered host, where both are bound by the same timeout arithmetic.
+It also does not consume a file descriptor per port, so it still finds every
+open port at concurrency levels where the connect scan silently misses up to a
+tenth of them.
+
+The first working version was *slower* than the connect scan (0.75x). What
+fixed it was not the packet library — that is 0.5% of the runtime — but sending
+from several raw sockets instead of one. The measurements behind that are in
+[Why the first version was slow](#why-the-first-version-was-slow).
 
 ---
 
@@ -21,9 +27,11 @@ file descriptor per port, and leaves a completed connection in the target's
 logs.
 
 A SYN scan sends only the initial SYN and reads the reply: SYN-ACK means open,
-RST means closed, silence means filtered. The handshake is never completed. The
-expectation going in was a large speed win. The measurements did not support
-that, and this document reports what actually happened.
+RST means closed, silence means filtered. The handshake is never completed.
+
+The expectation going in was a speed win of an order of magnitude. What was
+measured is 1.45x on loopback — real, but nothing like the numbers SYN scanners
+are usually quoted at, for reasons the caveats section spells out.
 
 ## Environment
 
@@ -63,25 +71,20 @@ traffic is involved in any measurement here.
 
 | Method | Duration (median) | Ports/sec (median) | Speedup |
 |---|---|---|---|
-| connect | 269 ms | 243,565 | 1.0x (baseline) |
-| syn | 359 ms | 182,514 | **0.75x** |
-
-The SYN scan is *slower*. On loopback a `connect()` to a closed port returns
-`ECONNREFUSED` immediately — there is no timeout to avoid and no handshake to
-save, because the handshake never gets past the first packet. Meanwhile the SYN
-scanner pays for a userspace sender loop, a per-packet checksum, and a receiver
-that must inspect every TCP segment on the machine, including its own outbound
-SYNs and the kernel's RST replies.
+| connect | 289 ms | 226,756 | 1.0x (baseline) |
+| syn | 199 ms | 330,084 | **1.45x** |
 
 ## Scenario 2 — 65,535 closed ports on loopback, `--concurrency 2000`
 
 | Method | Duration (median) | Ports/sec (median) | Speedup |
 |---|---|---|---|
-| connect | 358 ms | 183,139 | 1.0x (baseline) |
-| syn | 375 ms | 174,874 | **0.95x** |
+| connect | 361 ms | 181,453 | 1.0x (baseline) |
+| syn | 189 ms | 346,858 | **1.9x** |
 
-Raising concurrency does not help either method here; both are already limited
-by how fast loopback can turn packets around.
+Higher concurrency makes the connect scan slightly *slower* — more goroutines
+contending for the same loopback path — while the SYN scanner improves, because
+its cost is syscalls it can spread across sockets rather than sockets it must
+open.
 
 ## Scenario 3 — 1,024 filtered ports, `--timeout 1s`
 
@@ -107,21 +110,76 @@ range looks like on a machine with a normal descriptor limit.
 
 | Run | 1 | 2 | 3 | 4 | 5 |
 |---|---|---|---|---|---|
-| connect | 128 | 196 | 186 | 200 | 169 |
+| connect | 180 | 198 | 200 | 196 | 180 |
 | syn | 200 | 200 | 200 | 200 | 200 |
 
-The connect scan missed open ports in four of five runs, once reporting only
-128 of 200 — a 36% false negative rate, reported as a clean successful scan. A
+The connect scan missed open ports in four of five runs, reporting as few as 180
+of 200 — a 10% false negative rate, presented as a clean successful scan. A
 `dial` that fails with `EMFILE` is indistinguishable, to that code, from a
-closed port. The SYN scanner uses one raw socket for the entire scan, so its
-results do not degrade with the descriptor limit.
+closed port. The SYN scanner's socket count is fixed and independent of the port
+count, so its results do not degrade with the descriptor limit.
 
-At a more generous `ulimit -n 64` with `--concurrency 200` the effect is
-intermittent: one run in six reported 190 of 200, the other five found all 200.
+An earlier run of the same scenario, before the send path was parallelized, saw
+the connect scan report as few as 128 of 200. The size of the shortfall depends
+on how many dials are genuinely simultaneous, so treat the exact figure as
+variable and the direction as the finding. At a more generous `ulimit -n 64`
+with `--concurrency 200` the effect is intermittent: one run in six reported 190
+of 200, the rest found all 200.
+
 The durations in this scenario are 2–4 ms and too noisy to compare; no speed
 claim is made from it.
 
 ---
+
+## Why the first version was slow
+
+The first working SYN scanner took 359 ms where the connect scan took 269 ms.
+Rather than guess, each part of the send path was timed on its own, against
+`127.0.0.1`, 65,535 packets per measurement.
+
+| Component | Time for 65,535 packets | Share of the 359 ms scan |
+|---|---|---|
+| Build header + compute checksum, no syscalls | 1.7 ms | 0.5% |
+| Write them to **one** raw socket, one goroutine | 192 ms | 53% |
+| Everything else (pacing, receiving, correlating) | ~165 ms | 46% |
+
+**The packet library is not the bottleneck.** Building and checksumming all
+65,535 packets costs 1.7 ms — half a percent of the scan. Swapping packet
+libraries, or hand-rolling the header, cannot move a number that small. The
+scan is dominated by syscalls, not by CPU work in userspace.
+
+**One write syscall per packet, on one thread, was the bottleneck.** 192 ms of
+`sendto` calls is already 71% of the connect scan's entire runtime, before the
+SYN scanner does anything else. The connect scanner issues its syscalls from a
+hundred goroutines that the Go runtime spreads over 16 CPUs; the first SYN
+scanner issued them from one.
+
+The obvious fix does not work. Adding sender goroutines to the *same* socket
+makes it worse, because the kernel serializes writes per socket and the extra
+goroutines only add contention:
+
+| Sender goroutines, one shared socket | 1 | 2 | 4 | 8 | 16 |
+|---|---|---|---|---|---|
+| Time for 65,535 packets | 156 ms | 166 ms | 178 ms | 218 ms | 221 ms |
+
+Giving each sender **its own** socket is what parallelizes, because the
+serialization is per socket rather than per device:
+
+| Independent raw sockets | 1 | 4 | 8 |
+|---|---|---|---|
+| Time for 65,535 packets | 185 ms | 53 ms | 39 ms |
+
+The scanner now sends from eight raw sockets and receives on one, which took the
+65,535-port scan from 359 ms to 199 ms and turned 0.75x into 1.45x. Pacing and
+the in-flight queue stay on a single goroutine that owns them without locks; the
+workers do nothing but build a packet and make the write call.
+
+**The receiver still sees traffic it did not ask for.** A raw `ip4:tcp` socket
+is unfiltered: it receives every TCP segment on the machine, including the SYNs
+this scanner just sent. In one instrumented run the receiver read 21,061 of its
+own outbound SYNs alongside the replies it wanted. Attaching a BPF filter to the
+socket would remove that work, and is the obvious next thing to try; it has not
+been done, so no claim is made about what it would save.
 
 ## What the measurements changed in the code
 
@@ -163,8 +221,14 @@ Two defects were found by benchmarking, not by testing:
 
 ## Conclusion
 
-The SYN scanner did not deliver the speed win this phase set out to get, on the
-targets that could be measured. What it does deliver, measurably, is a scan
-whose accuracy does not depend on the process file descriptor limit, and one
-that never completes a handshake against the target. On this hardware, against
-loopback, `--fast` is a correctness feature with a small speed cost.
+`--fast` is 1.45x the connect scan on 65,535 loopback ports and 1.9x at
+`--concurrency 2000`, level with it against a filtered host, and more accurate
+than it under file descriptor pressure. It never completes a handshake against
+the target.
+
+That is well short of the order-of-magnitude figures SYN scanners are usually
+quoted at, and the reason is the target rather than the implementation: on
+loopback there is no timeout to avoid and no round trip to overlap, which is
+exactly what a SYN scan exists to exploit. The measurement that would show that
+advantage needs a remote host, and this environment does not have one to
+scan.
