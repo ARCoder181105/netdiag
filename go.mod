@@ -1,6 +1,6 @@
 module github.com/ARCoder181105/netdiag
 
-go 1.24.0
+go 1.25.0
 
 require (
 	github.com/fatih/color v1.18.0
@@ -12,7 +12,7 @@ require (
 	github.com/spf13/cobra v1.10.2
 	github.com/spf13/viper v1.21.0
 	golang.org/x/net v0.48.0
-	golang.org/x/sync v0.19.0
+	golang.org/x/sync v0.22.0
 )
 
 require (
