@@ -21,13 +21,15 @@
 Output docs/demo.gif
 
 Set Shell bash
-Set FontSize 14
-Set Width 1600
-Set Height 900
+Set FontSize 18
+Set Width 1400
+Set Height 800
 Set Padding 30
 Set Theme "Catppuccin Mocha"
 Set TypingSpeed 55ms
 Set PlaybackSpeed 1.0
+Set CursorBlink false
+Set WindowBar "Colorful"
 
 # Use the capability-granted build for the recording, and keep the prompt short
 # so the commands are what stands out.
