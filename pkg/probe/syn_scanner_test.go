@@ -330,8 +330,10 @@ func TestAIMDHalvesOnLossAndCreepsBackUp(t *testing.T) {
 func TestAIMDWaitsForAFullWindow(t *testing.T) {
 	limiter := newAIMD(64)
 
-	for range 63 {
-		limiter.completed(true)
+	// 62 timeouts and one reply: partial loss, so this window will back off —
+	// but not until its 64th probe completes.
+	for i := range 63 {
+		limiter.completed(i < 62)
 	}
 	if got := limiter.limit(); got != 64 {
 		t.Fatalf("limit changed mid-window: %d, want 64", got)
@@ -343,13 +345,55 @@ func TestAIMDWaitsForAFullWindow(t *testing.T) {
 	}
 }
 
-func TestAIMDNeverReachesZero(t *testing.T) {
-	limiter := newAIMD(4)
+// Sustained partial loss must stop at the floor, not at one probe in flight.
+func TestAIMDStopsAtTheFloor(t *testing.T) {
+	limiter := newAIMD(128)
+
 	for range 20 {
-		completeWindow(limiter, aimdWindow)
+		completeWindow(limiter, 1)
 	}
-	if got := limiter.limit(); got != 1 {
-		t.Fatalf("limit after sustained loss = %d, want 1 (a scan must still make progress)", got)
+
+	if got := limiter.limit(); got != 8 {
+		t.Fatalf("limit after sustained partial loss = %d, want the floor of 8", got)
+	}
+}
+
+// A user who asked for less concurrency than the floor gets what they asked
+// for, and the limit never drops below it — least of all to zero, which would
+// stall the scan outright.
+func TestAIMDFloorNeverExceedsRequestedConcurrency(t *testing.T) {
+	limiter := newAIMD(4)
+
+	for range 20 {
+		completeWindow(limiter, 1)
+	}
+
+	if got := limiter.limit(); got != 4 {
+		t.Fatalf("limit after sustained partial loss = %d, want 4 (the requested concurrency)", got)
+	}
+}
+
+// A window where nothing at all answered means the range is filtered or the
+// host is down, not that the network is congested. Backing off there recovers
+// no replies and only stretches the scan: measured, halving on total silence
+// made a filtered 65,535-port scan about eight times slower than the connect
+// scan it exists to beat.
+func TestAIMDHoldsWhenNothingAnswers(t *testing.T) {
+	limiter := newAIMD(100)
+
+	for range 20 {
+		completeWindow(limiter, aimdWindow) // every probe timed out
+	}
+
+	if got := limiter.limit(); got != 100 {
+		t.Fatalf("limit after total silence = %d, want 100 (unchanged)", got)
+	}
+
+	// But a window that mixes replies with timeouts is congestion, and must
+	// still back off.
+	completeWindow(limiter, aimdWindow-1)
+	if got := limiter.limit(); got != 50 {
+		t.Fatalf("limit after a mostly-lost but not silent window = %d, want 50", got)
 	}
 }
 

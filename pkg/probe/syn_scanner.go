@@ -53,8 +53,15 @@ const (
 	stateClosed
 )
 
-// tcpProtocolNumber is IPPROTO_TCP, which appears in the checksum pseudo-header.
-const tcpProtocolNumber = 6
+const (
+	// tcpProtocolNumber is IPPROTO_TCP, which appears in the checksum
+	// pseudo-header.
+	tcpProtocolNumber = 6
+	// readBufferBytes is the raw socket receive buffer. The kernel may clamp
+	// this to net.core.rmem_max, which is why the scanner still has to cope
+	// with dropped replies rather than assume this is enough.
+	readBufferBytes = 4 << 20
+)
 
 func (s *SYNScanner) Probe(ctx context.Context) (Result, error) {
 	if s.Fallback == nil {
@@ -85,6 +92,14 @@ func (s *SYNScanner) Probe(ctx context.Context) (Result, error) {
 		return Result{}, fmt.Errorf("open raw socket: %w", err)
 	}
 	defer func() { _ = conn.Close() }()
+
+	// A raw socket sees every TCP segment on the machine, and at scan rates the
+	// default receive buffer overflows long before the receiver goroutine can
+	// drain it. A dropped reply is indistinguishable from a filtered port, so
+	// the cost of a small buffer is wrong results, not just slow ones.
+	if raw, ok := conn.(*net.IPConn); ok {
+		_ = raw.SetReadBuffer(readBufferBytes)
+	}
 
 	start := time.Now()
 
@@ -195,25 +210,46 @@ func (s *SYNScanner) sendAll(ctx context.Context, conn net.PacketConn, src, dst 
 // which case the network is being pushed too hard and the limit halves, or was
 // clean, in which case the limit creeps up by one.
 //
-// A dropped SYN is indistinguishable from a filtered port, so a scan of mostly
-// filtered ports will back off even on a healthy network. That is the right
-// trade: it is the same evidence the network would give under real congestion.
+// A dropped SYN is indistinguishable from a filtered port, so the loss signal
+// needs one qualification: only a window that contains BOTH replies and
+// timeouts is evidence of congestion. A window that is entirely silent means
+// the range is filtered or the host is down, and slowing down would not recover
+// a single reply — it would only stretch the scan. Measured: without this,
+// halving on total silence made a filtered 65,535-port scan roughly eight times
+// slower than the connect scan it was supposed to beat.
+//
+// The floor is deliberately a small absolute number rather than a fraction of
+// the requested concurrency. Measured: at --concurrency 2000 a floor of
+// max/8 = 250 held the scanner in the regime where replies were being dropped,
+// so every probe waited out its full timeout and a 65,535-port loopback scan
+// took over two minutes. The same scan at a limit small enough not to drop
+// replies takes under half a second, because each probe then retires at the
+// speed of the round trip instead of the timeout.
 type aimd struct {
 	max     int
+	floor   int
 	current int
 	done    int
 	lost    int
 	mu      sync.Mutex
 }
 
-// aimdWindow is how many completed probes a pacing decision is made over.
-const aimdWindow = 64
+const (
+	// aimdWindow is how many completed probes a pacing decision is made over.
+	aimdWindow = 64
+	// aimdFloor is the smallest useful number of probes in flight.
+	aimdFloor = 8
+)
 
 func newAIMD(maxInFlight int) *aimd {
 	if maxInFlight < 1 {
 		maxInFlight = 1
 	}
-	return &aimd{max: maxInFlight, current: maxInFlight}
+	return &aimd{
+		max:     maxInFlight,
+		floor:   min(aimdFloor, maxInFlight),
+		current: maxInFlight,
+	}
 }
 
 func (a *aimd) limit() int {
@@ -237,8 +273,12 @@ func (a *aimd) completed(timedOut bool) {
 	}
 
 	switch {
-	case a.lost > 0:
-		a.current = max(1, a.current/2)
+	case a.lost > 0 && a.lost < a.done:
+		// Partial loss: replies are getting through but not all of them, which
+		// is what a congested path or a rate-limiting target looks like.
+		a.current = max(a.floor, a.current/2)
+	case a.lost == a.done:
+		// Total silence. Hold the limit: there is nothing to back off from.
 	case a.current < a.max:
 		a.current++
 	}

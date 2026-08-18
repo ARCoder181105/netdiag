@@ -9,9 +9,10 @@ This document outlines the full engineering transformation plan for netdiag — 
 Core one-shot commands working: `ping`, `scan`, `trace`, `http`, `dig`, `whois`, `speedtest`, `discover`.
 
 Phase 0 shipped in v0.2.0. v0.3.0 is a correctness and hardening release on top
-of it — no new phases. Phases 1–6 below are **not started**; every command,
-flag, metric, and output sample in them describes intended future work, not
-current behaviour.
+of it. Phase 3 (the SYN scanner) has shipped on top of that and its numbers are
+measured, not projected. Phases 1, 2, 4, 5 and 6 below are **not started**;
+every command, flag, metric, and output sample in them describes intended future
+work, not current behavior.
 
 ---
 
@@ -103,7 +104,7 @@ netdiag dashboard --target google.com --target 1.1.1.1 --target github.com
 
 ---
 
-## 🟧 Phase 3 — Low-Level Engineer: Raw Socket SYN Scanner `v0.6.0`
+## ✅ Phase 3 — Low-Level Engineer: Raw Socket SYN Scanner `v0.6.0` — SHIPPED
 
 > **Goal:** Solve a hard technical problem with a measurable, benchmarkable result.
 
@@ -118,28 +119,51 @@ netdiag scan 192.168.1.1 -p 1-1024  --benchmark     # compare both methods
 
 Current `net.DialTimeout("tcp", ...)` completes a full 3-way TCP handshake per port — wasteful, slow, and leaves connection logs on the target. A SYN scan sends only the initial SYN packet and reads the response (SYN-ACK = open, RST = closed) — never completing the handshake.
 
-### Planned deliverables
+### What shipped
 
-- **`pkg/probe/syn_scanner.go`** — will do raw TCP SYN packet crafting using `google/gopacket`, manually computing TCP checksums. Will require `cap_net_raw` or root.
-- **Adaptive concurrency** — a semaphore that backs off when packet loss is detected (reduces concurrency on congestion, ramps up on clean network).
-- **Benchmark mode** — will run both methods against the same target and print a comparison table.
-- **Fallback** — will automatically fall back to connect scan if raw socket creation fails (no privileges).
+- **`pkg/probe/syn_scanner.go`** — raw TCP SYN packet crafting. `google/gopacket` lays out and decodes the header; the TCP checksum is computed over the IPv4 pseudo-header by netdiag's own code, because handing that to a library helper is the part worth being able to explain. Requires `cap_net_raw` or root.
+- **Adaptive concurrency** — additive-increase/multiplicative-decrease over a fixed window, backing off only on windows that contain both replies and timeouts. Total silence means a filtered range, not congestion.
+- **Benchmark mode** — `--benchmark` runs both methods against the same target and prints a comparison table.
+- **Fallback** — a raw socket refused for lack of privilege falls back to the connect scan, with a notice on stderr.
 
-### Target (illustrative — not measured)
+### Measured results
 
-> ⚠️ The SYN scanner does not exist yet. The numbers below are the order of
-> magnitude this phase aims for, based on published results for other SYN
-> scanners. They are **not** measurements of netdiag. This table gets replaced
-> with real, reproducible numbers from `docs/performance.md` when Phase 3 ships.
+Full methodology, environment and caveats: [`docs/performance.md`](docs/performance.md).
+Measured in a `--cap-add=NET_RAW` container on a 12th Gen Intel Core i7-12650H,
+Linux 7.0.0-28-generic, median of 5 runs.
 
-| Method       | Time  | Ports/sec | Speedup |
-| ------------ | ----- | --------- | ------- |
-| Connect scan | ~40s  | ~1,600    | 1x      |
-| SYN scan     | ~1s   | ~70,000   | ~40x    |
+| Target | Method | Time | Ports/sec | Speedup |
+| ------ | ------ | ---- | --------- | ------- |
+| 65,535 closed ports on loopback, `-c 100` | connect | 269 ms | 243,565 | 1.0x |
+| 65,535 closed ports on loopback, `-c 100` | syn | 359 ms | 182,514 | **0.75x** |
+| 1,024 filtered ports, `-t 1s -c 100` | connect | 11.009 s | 93 | 1.0x |
+| 1,024 filtered ports, `-t 1s -c 100` | syn | 11.008 s | 93 | **1.0x** |
+
+**The SYN scanner is not faster on any target that could be measured here.** On
+loopback, a connect to a closed port is refused instantly, so there is no
+timeout to save; against a silent host, both methods are bound by
+ports ÷ concurrency × timeout.
+
+The measured advantage is accuracy under file descriptor pressure. Scanning 200
+open ports with `ulimit -n 32` and `-c 500`, five runs:
+
+| Run | 1 | 2 | 3 | 4 | 5 |
+| --- | - | - | - | - | - |
+| connect — open ports found | 128 | 196 | 186 | 200 | 169 |
+| syn — open ports found | 200 | 200 | 200 | 200 | 200 |
+
+The connect scan needs a descriptor per port and reports an `EMFILE` failure as
+a closed port, so it silently under-reports. The SYN scan uses one socket for
+the whole scan.
+
+The WAN case usually cited for SYN scanning — a remote host that drops packets
+to closed ports, making the connect scan pay a full timeout per port — **was not
+measured**, because this environment has no authorized remote target. It is
+untested, not proven.
 
 ### Deliverable
 
-`netdiag scan localhost -p 1-65535 --benchmark` prints a measured comparison table. `docs/performance.md` documents the methodology.
+`netdiag scan 127.0.0.1 -p 1-65535 --benchmark` prints the measured comparison table above. `docs/performance.md` documents methodology and caveats.
 
 ---
 
