@@ -1,0 +1,12 @@
+
+# Build artifacts and local files that should never enter the build context.
+.git
+.github
+dist/
+netdiag
+netdiag.exe
+*.test
+CLAUDE.md
+docs/
+*.md
+!go.mod
