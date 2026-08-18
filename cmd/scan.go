@@ -3,6 +3,7 @@ package cmd
 
 import (
 	"fmt"
+	"os"
 	"strings"
 	"time"
 
@@ -15,9 +16,11 @@ import (
 )
 
 var (
-	ports       string
-	scanTimeout time.Duration
-	concurrency int
+	ports         string
+	scanTimeout   time.Duration
+	concurrency   int
+	fastScan      bool
+	benchmarkScan bool
 )
 
 var scanCmd = &cobra.Command{
@@ -31,7 +34,8 @@ Only scan hosts you own or have explicit permission to test.
 Examples:
   netdiag scan google.com
   netdiag scan 192.168.1.1 --ports 80,443,8000-8100
-  netdiag scan localhost -p 22 -t 2s`,
+  netdiag scan localhost -p 22 -t 2s
+  netdiag scan 192.168.1.1 -p 1-65535 --fast`,
 	Args: cobra.ExactArgs(1),
 	Run: func(cmd *cobra.Command, args []string) {
 		host := strings.TrimSpace(args[0])
@@ -51,11 +55,31 @@ Examples:
 		effectiveTimeout := scanTimeoutValue(cmd)
 		requirePositiveDuration("--timeout", effectiveTimeout)
 
-		scanner := &probe.ConnectScanner{
+		connect := &probe.ConnectScanner{
 			Host:        host,
 			Ports:       portList,
 			Timeout:     effectiveTimeout,
 			Concurrency: concurrency,
+		}
+
+		syn := &probe.SYNScanner{
+			Host:        host,
+			Ports:       portList,
+			Timeout:     effectiveTimeout,
+			Concurrency: concurrency,
+			Fallback:    connect,
+			// Diagnostics go to stderr so --json stdout stays parseable.
+			Notify: output.PrintErrorLine,
+		}
+
+		if benchmarkScan {
+			runScanBenchmark(host, connect, syn)
+			return
+		}
+
+		var scanner probe.Prober = connect
+		if fastScan {
+			scanner = syn
 		}
 
 		runProbe(scanner, host, probeOpts{
@@ -72,6 +96,82 @@ Examples:
 			Render: renderScan,
 		})
 	},
+}
+
+// runScanBenchmark runs both scan methods against the same target and prints a
+// comparison.
+//
+// It does not go through runProbe: runProbe runs one probe and exits, which is
+// the right shape for every other command. Rather than teach it about a second
+// result, the benchmark drives the two Probers directly — they are the same
+// production types the normal path uses.
+func runScanBenchmark(host string, connect *probe.ConnectScanner, syn *probe.SYNScanner) {
+	ctx, stop := signalContext()
+	defer stop()
+
+	if !jsonOutput {
+		output.PrintInfo(fmt.Sprintf("Benchmarking both scan methods against %s...", host))
+	}
+
+	results := make([]probe.Result, 0, 2)
+	for _, scanner := range []probe.Prober{connect, syn} {
+		result, err := scanner.Probe(ctx)
+		if err != nil {
+			output.PrintErrorLine(fmt.Sprintf("benchmark aborted: %v", err))
+			os.Exit(exitRuntime)
+		}
+		results = append(results, result)
+		logResult(result, nil)
+	}
+
+	if jsonOutput {
+		output.PrintJSON(results)
+		exitForAll(results, exitProbe)
+	}
+
+	renderScanBenchmark(results)
+	exitForAll(results, exitProbe)
+}
+
+// renderScanBenchmark prints the comparison table. Speedup is relative to the
+// first row, which is always the connect scan.
+func renderScanBenchmark(results []probe.Result) {
+	headers := []string{"Method", "Duration", "Ports/sec", "Open ports", "Speedup"}
+	rows := make([][]string, 0, len(results))
+
+	baseline := results[0].Latency
+
+	for i, r := range results {
+		speedup := "1.0x (baseline)"
+		if i > 0 && r.Latency > 0 {
+			speedup = fmt.Sprintf("%.1fx", float64(baseline)/float64(r.Latency))
+		}
+
+		method := "unknown"
+		portsPerSec, openPorts := 0.0, 0
+		if r.ScanData != nil {
+			method = r.ScanData.ScanMethod
+			portsPerSec = r.ScanData.PortsPerSec
+			openPorts = len(r.ScanData.OpenPorts)
+		}
+
+		rows = append(rows, []string{
+			method,
+			r.Latency.Round(time.Millisecond).String(),
+			fmt.Sprintf("%.0f", portsPerSec),
+			fmt.Sprintf("%d", openPorts),
+			speedup,
+		})
+	}
+
+	fmt.Println()
+	output.PrintTable(headers, rows)
+
+	// A SYN scan that fell back to the connect scan would otherwise look like a
+	// suspiciously fair fight.
+	if len(results) == 2 && results[1].ScanData != nil && results[1].ScanData.ScanMethod != "syn" {
+		output.PrintErrorLine("The SYN run fell back to the connect scan, so this is not a comparison of two methods.")
+	}
 }
 
 // scanTimeoutValue prefers an explicit --timeout, falling back to
@@ -127,4 +227,6 @@ func init() {
 	scanCmd.Flags().DurationVarP(&scanTimeout, "timeout", "t", time.Second, "Connection timeout per port (e.g. 1s, 500ms)")
 	scanCmd.Flags().StringVarP(&ports, "ports", "p", "1-1024", "Ports to scan: a list, a range, or both (e.g. 22,80,8000-8100)")
 	scanCmd.Flags().IntVarP(&concurrency, "concurrency", "c", 100, "Number of ports to probe concurrently")
+	scanCmd.Flags().BoolVar(&fastScan, "fast", false, "Use a half-open SYN scan (needs CAP_NET_RAW; falls back to the connect scan)")
+	scanCmd.Flags().BoolVar(&benchmarkScan, "benchmark", false, "Run both scan methods against the target and compare them")
 }
