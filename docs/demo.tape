@@ -2,12 +2,19 @@
 #
 # Produces docs/demo.gif, which the README references.
 #
+# Linux only, because of the setcap step:
+#
 #   go build -o /tmp/netdiag . && sudo setcap cap_net_raw+ep /tmp/netdiag
 #   vhs docs/demo.tape
 #
-# The setcap step matters: without it, ping and trace fail and `scan --fast`
-# quietly falls back to the connect scan, so the recording would show the
-# fallback notice rather than the feature.
+# On macOS, record with sudo instead. The commands themselves are portable.
+#
+# Grant the capability before recording. Without it, `scan --fast` falls back to
+# a connect scan and prints the fallback notice, so the frame meant to show the
+# SYN scanner would show it not being used. (`ping` would likely still work,
+# since it falls back to unprivileged ICMP datagram sockets on most Linux
+# systems, and `trace` would fail outright — but neither is what this recording
+# is for.)
 #
 # vhs: https://github.com/charmbracelet/vhs
 
@@ -31,8 +38,11 @@ Show
 Sleep 500ms
 
 # ── Ping several hosts at once ───────────────────────────────────────────────
+# Two hosts, 3 packets each at a 1s interval, measured at ~2.2s locally. The
+# sleep clears the 5s per-run timeout instead, so a slow or unreachable host
+# cannot leave the next keystrokes landing mid-command.
 Type "netdiag ping google.com cloudflare.com"  Sleep 400ms  Enter
-Sleep 4s
+Sleep 6s
 
 Type "clear"  Enter  Sleep 300ms
 

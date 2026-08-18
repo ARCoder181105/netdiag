@@ -83,9 +83,12 @@ not know what a terminal is.
 ## The `Result` envelope
 
 One struct carries every probe's output: identity fields, an outcome
-(`Success`, `Severity`, `Message`, `Latency`), and exactly one non-nil
+(`Success`, `Severity`, `Message`, `Latency`), and at most one non-nil
 probe-specific payload pointer. A ping fills `PingData`, a scan fills
-`ScanData`, and the rest stay nil and are omitted from JSON.
+`ScanData`, and the rest stay nil and are omitted from JSON. A probe that could
+not run at all fills none of them — `ErrorResult` carries the outcome and no
+payload — so consumers must treat the payload as optional rather than assume the
+one matching `probe_type` is present.
 
 This is a tagged union expressed with pointers rather than an interface, chosen
 because it marshals to predictable JSON with no custom marshaler. The cost is

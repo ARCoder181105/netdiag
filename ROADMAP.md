@@ -3,8 +3,8 @@
 netdiag is a finished tool, not a work in progress. This document records what
 was built, what was deliberately **cut**, and why.
 
-The original plan had six phases and would have turned a diagnostics CLI into a
-monitoring platform: a daemon, Prometheus metrics, a TUI dashboard, SQLite
+The original plan had seven phases, Phase 0 through Phase 6, and would have
+turned a diagnostics CLI into a monitoring platform: a daemon, Prometheus metrics, a TUI dashboard, SQLite
 persistence, and a gRPC agent mode. Three of those phases shipped. Four were
 cut, on purpose, because a smaller finished tool is worth more than a large
 unfinished one — and because most of what was planned already exists, done
@@ -201,7 +201,11 @@ over SSH. It also depended on Phase 1 for the aggregating side.
 | `v0.1.0` | — | Initial release, all one-shot commands |
 | `v0.2.0` | Phase 0 | `pkg/probe/` refactor, JSON output, config file, first tests |
 | `v0.3.0` | — | Correctness and hardening: exit codes, signals, real tests |
-| next | Phases 3 + 6 | SYN scanner, `--fast`, `--benchmark`, measured docs, Docker |
+| unreleased | Phases 3 + 6 | SYN scanner, `--fast`, `--benchmark`, measured docs, architecture doc, Docker |
+
+Phases 3 and 6 are merged and on `main`, but not yet tagged: the latest release
+is `v0.3.0`, so `--fast` and `--benchmark` are available by building from source
+or from the Docker image, not from a released binary.
 
 ## What would actually be worth adding
 

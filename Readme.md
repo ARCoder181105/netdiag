@@ -118,6 +118,12 @@ irm https://raw.githubusercontent.com/ARCoder181105/netdiag/main/install.ps1 | i
 go install github.com/ARCoder181105/netdiag@latest
 ```
 
+Both install scripts are fetched from `main` and piped straight into a shell.
+If you would rather not do that, read
+[install.sh](install.sh) first, or use `go install` or a
+[release binary](#pre-built-binaries) instead — releases are versioned and
+publish checksums.
+
 <details>
 <summary>Pre-built binaries, building from source, uninstalling</summary>
 
@@ -125,6 +131,13 @@ go install github.com/ARCoder181105/netdiag@latest
 
 [Download the latest release](https://github.com/ARCoder181105/netdiag/releases/latest)
 for Linux (amd64/arm64), macOS (Intel/Apple Silicon), or Windows (amd64).
+
+Every release publishes a `checksums.txt`. Verify before installing — download
+it alongside the binary, then:
+
+```bash
+sha256sum --check --ignore-missing checksums.txt
+```
 
 ```bash
 chmod +x netdiag-*
@@ -162,14 +175,18 @@ Verify with `netdiag --version`.
 
 | Command | What it does | Needs privileges |
 |---|---|---|
-| [`ping`](#ping) | ICMP echo to one or more hosts, concurrently | yes |
+| [`ping`](#ping) | ICMP echo to one or more hosts, concurrently | usually not — see [Permissions](#permissions) |
 | [`scan`](#scan) | TCP port scan, connect or half-open SYN | only for `--fast` |
 | [`trace`](#trace) | Traceroute to a destination | yes |
 | [`http`](#http) | HTTP status, latency, and TLS certificate check | no |
 | [`dig`](#dig) | DNS lookups (A, AAAA, MX, TXT, NS, CNAME) | no |
 | [`whois`](#whois) | Domain registration lookup | no |
-| [`discover`](#discover) | Sweep the local network for active devices | yes |
+| [`discover`](#discover) | Sweep the local network for active devices | usually not — see [Permissions](#permissions) |
 | [`speedtest`](#speedtest) | Download and upload throughput | no |
+
+`ping` and `discover` try unprivileged ICMP datagram sockets first and work
+without setup on macOS and most Linux systems. `trace` and `scan --fast` always
+need `CAP_NET_RAW` or the equivalent.
 
 Global flags, valid on every command:
 
@@ -324,8 +341,11 @@ netdiag speedtest --no-upload
 
 ## Scripting: JSON and exit codes
 
-Every command supports `--json`. Logs and diagnostics always go to stderr, so
-stdout stays a clean pipe:
+Every command supports `--json`. Logs and diagnostics go to stderr by default —
+or to a file with `--log-file` — and never to stdout, so the JSON stays a clean
+pipe either way. The examples below use [jq](https://jqlang.github.io/jq/),
+which is not required to run netdiag but makes the JSON output far easier to
+work with:
 
 ```bash
 netdiag ping 1.1.1.1 --json | jq '.[0].ping_data.avg_rtt'
@@ -338,7 +358,10 @@ netdiag http https://example.com --json | jq '.http_data.tls_days_left'
 | `0` | `OK` or `Warning` | The probe ran; the target is up |
 | `1` | `Error` | The probe ran and the target failed |
 | `2` | — | Invalid arguments, flags, or configuration |
-| `3` | — | The probe could not run (no privileges, unresolvable host) |
+| `3` | — | The probe could not run at all (for example, ICMP is not permitted) |
+
+A host that cannot be resolved is a failed *target*, not a probe that could not
+run, so it exits `1` rather than `3`.
 
 **Warnings exit `0` deliberately.** A certificate with 10 days left, 25% packet
 loss on a host that still answers, or a traceroute that never reached the final
